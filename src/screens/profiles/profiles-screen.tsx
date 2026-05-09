@@ -320,7 +320,7 @@ export function ProfilesScreen() {
                     )}
                   >
                     <img
-                      src="/hermes-avatar.webp"
+                      src="/claude-avatar.webp"
                       alt={profile.name}
                       className={cn(
                         'size-20 rounded-full border-2 object-cover',
@@ -608,7 +608,7 @@ export function ProfilesScreen() {
                     </div>
                   ) : allModels.length === 0 ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-                      No models found. Make sure Project Agent is running and
+                      No models found. Make sure Hermes Agent is running and
                       has models configured.
                     </div>
                   ) : (
@@ -830,7 +830,7 @@ export function ProfilesScreen() {
           <div className="shrink-0 border-b border-primary-200 px-6 pb-4 pt-5 dark:border-neutral-800">
             <div className="flex items-center gap-3">
               <img
-                src="/hermes-avatar.webp"
+                src="/claude-avatar.webp"
                 alt={detailsName || ''}
                 className="size-12 rounded-full border-2 border-primary-200 object-cover dark:border-neutral-700"
               />

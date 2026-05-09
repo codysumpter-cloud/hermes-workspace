@@ -26,9 +26,9 @@ function isBrowserMemoryPath(relativePath: string): boolean {
 function normalizeWorkspaceRoot(): string {
   // Honor HERMES_HOME when set (e.g. ~/.hermes-vanilla for running alongside prod).
   // Fall back to ~/.hermes for the default install location.
-  const envHome = process.env.HERMES_HOME?.trim()
-  if (envHome) return envHome
-  return path.join(os.homedir(), '.hermes')
+  const envHome = (process.env.HERMES_HOME || process.env.CLAUDE_HOME)?.trim()
+  const resolved = envHome ? path.resolve(envHome) : path.resolve(path.join(os.homedir(), '.hermes'))
+  return resolved
 }
 
 export function getMemoryWorkspaceRoot(): string {
@@ -137,7 +137,10 @@ export function listMemoryFiles(): Array<MemoryFileMeta> {
   const workspaceRoot = getMemoryWorkspaceRoot()
   const results: Array<MemoryFileMeta> = []
 
-  walkWorkspaceDir(results, workspaceRoot, workspaceRoot)
+  pushIfMarkdownFile(results, workspaceRoot, path.join(workspaceRoot, 'MEMORY.md'))
+  for (const subdir of ['memory', 'memories']) {
+    walkWorkspaceDir(results, workspaceRoot, path.join(workspaceRoot, subdir))
+  }
 
   results.sort(compareMemoryFiles)
   return results

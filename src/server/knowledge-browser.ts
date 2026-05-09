@@ -121,12 +121,12 @@ function extractWikilinks(content: string): Array<string> {
 
 function getLegacyKnowledgeRoot(): string {
   if (process.env.KNOWLEDGE_DIR) return path.resolve(process.env.KNOWLEDGE_DIR)
-  const hermesHome = path.join(os.homedir(), '.hermes')
-  const hermesKnowledge = path.join(hermesHome, 'knowledge')
-  if (fs.existsSync(hermesKnowledge)) return hermesKnowledge
+  const claudeHome = path.join(os.homedir(), '.claude')
+  const claudeKnowledge = path.join(claudeHome, 'knowledge')
+  if (fs.existsSync(claudeKnowledge)) return claudeKnowledge
   const homeKnowledge = path.join(os.homedir(), 'knowledge', 'wiki')
   if (fs.existsSync(homeKnowledge)) return homeKnowledge
-  return hermesKnowledge
+  return claudeKnowledge
 }
 
 // ─── GitHub Knowledge Provider ─────────────────────────────────────────────────
@@ -147,12 +147,12 @@ class GitHubKnowledgeProvider {
     const safeRepo = repo.replace('/', '_')
     const safePath = repoPath.replace(/^\//, '').replace(/\//g, '_')
     this.branch = branch
-    const base = path.join(os.homedir(), '.hermes', 'knowledge-cache', 'github', safeRepo, branch, safePath)
+    const base = path.join(os.homedir(), '.claude', 'knowledge-cache', 'github', safeRepo, branch, safePath)
     this.cacheDir = base
   }
 
   private get cacheRoot(): string {
-    return path.join(os.homedir(), '.hermes', 'knowledge-cache', 'github', this.repo.replace('/', '_'), this.branch)
+    return path.join(os.homedir(), '.claude', 'knowledge-cache', 'github', this.repo.replace('/', '_'), this.branch)
   }
 
   /** Fetch + decode the GitHub repo into the local cache directory. */

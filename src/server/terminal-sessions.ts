@@ -22,7 +22,26 @@ export type TerminalSession = {
   sendInput: (data: string) => void
   resize: (cols: number, rows: number) => void
   close: () => void
+  /**
+   * Mark that all live SSE listeners have detached. Starts an idle timer that
+   * will reap the PTY if no listener reattaches in time. Lets the session
+   * survive transient disconnects (network blips, browser tab suspension,
+   * HMR reload) without killing the user's shell. See #298.
+   */
+  markDetached: () => void
+  /** Cancel a pending detached-reap timer (called when a new listener attaches). */
+  markAttached: () => void
 }
+
+// How long an unattached PTY session stays alive before it's reaped, in ms.
+// Long enough to absorb tab suspension and short network blips, short enough
+// that abandoned tabs don't pile up forever. Override with HERMES_TERMINAL_DETACH_TTL_MS.
+const DETACH_TTL_MS = (() => {
+  const raw = process.env.HERMES_TERMINAL_DETACH_TTL_MS
+  const parsed = raw ? Number(raw) : NaN
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed)
+  return 5 * 60_000 // 5 minutes
+})()
 
 const sessions = new Map<string, TerminalSession>()
 
@@ -50,7 +69,9 @@ export function createTerminalSession(params: {
       : process.platform === 'darwin'
         ? '/bin/zsh'
         : '/bin/bash'
-  const shell = params.command?.[0] ?? process.env.SHELL ?? defaultShell
+  const command = params.command?.length
+    ? params.command
+    : [process.env.SHELL ?? defaultShell]
   let cwd = params.cwd ?? home
   if (cwd.startsWith('~')) {
     cwd = cwd.replace('~', home)
@@ -86,7 +107,7 @@ export function createTerminalSession(params: {
   // Spawn Python PTY helper
   const proc: ChildProcess = spawn(
     'python3',
-    [PTY_HELPER, shell, cwd, String(cols), String(rows)],
+    [PTY_HELPER, cwd, String(cols), String(rows), '--', ...command],
     {
       env: {
         ...process.env,
@@ -131,6 +152,8 @@ export function createTerminalSession(params: {
     })
   })
 
+  let detachTimer: ReturnType<typeof setTimeout> | null = null
+
   const session: TerminalSession = {
     id: sessionId,
     createdAt: Date.now(),
@@ -154,7 +177,29 @@ export function createTerminalSession(params: {
       }
     },
 
+    markDetached() {
+      if (detachTimer) clearTimeout(detachTimer)
+      detachTimer = setTimeout(() => {
+        detachTimer = null
+        // Only reap if the session is still in the map and the proc is alive.
+        if (sessions.get(sessionId) === session) {
+          session.close()
+        }
+      }, DETACH_TTL_MS)
+    },
+
+    markAttached() {
+      if (detachTimer) {
+        clearTimeout(detachTimer)
+        detachTimer = null
+      }
+    },
+
     close() {
+      if (detachTimer) {
+        clearTimeout(detachTimer)
+        detachTimer = null
+      }
       try {
         proc.kill('SIGTERM')
         setTimeout(() => {

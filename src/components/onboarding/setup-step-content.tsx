@@ -20,7 +20,7 @@ type AuthCheckResponse = {
   error?: string
 }
 
-type HermesConfigResponse = {
+type ClaudeConfigResponse = {
   activeProvider?: string
   activeModel?: string
 }
@@ -111,7 +111,7 @@ export function ConnectionCheckStep({
       {status === 'disconnected' && (
         <div className="mb-6 w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-left">
           <p className="mb-3 text-sm font-medium text-red-700">
-            Make sure the Hermes HTTP API server is enabled:
+            Make sure the Hermes Agent HTTP API server is enabled:
           </p>
           <div className="space-y-2">
             <div>
@@ -157,7 +157,7 @@ export function ModelConfigurationStep({
   setCanProceed,
 }: OnboardingStepComponentProps) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [config, setConfig] = useState<HermesConfigResponse | null>(null)
+  const [config, setConfig] = useState<ClaudeConfigResponse | null>(null)
 
   useEffect(() => {
     setCanProceed(true)
@@ -168,14 +168,14 @@ export function ModelConfigurationStep({
 
     async function loadConfig() {
       try {
-        const response = await fetch('/api/hermes-config', {
+        const response = await fetch('/api/claude-config', {
           signal: AbortSignal.timeout(5000),
         })
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
 
-        const data = (await response.json()) as HermesConfigResponse
+        const data = (await response.json()) as ClaudeConfigResponse
         if (!cancelled) {
           setConfig(data)
           setStatus('ready')
@@ -213,7 +213,7 @@ export function ModelConfigurationStep({
       </h2>
 
       <p className="mb-6 max-w-md text-base leading-relaxed text-primary-600">
-        Core chat works with any OpenAI-compatible backend. Hermes gateway APIs
+        Core chat works with any OpenAI-compatible backend. Hermes Agent gateway APIs
         make provider and model setup editable from the workspace.
       </p>
 

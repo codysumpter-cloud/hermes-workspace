@@ -6,6 +6,17 @@
 
 :root {
   --tabbar-h: 0px;
+  /* Chat content max-width — controlled by Settings > Chat Display (see #89).
+   * Keep 900px default to match prior layout; 'wide' = 1200px, 'full' = 100%. */
+  --chat-content-max-width: 900px;
+}
+
+[data-chat-width='wide'] {
+  --chat-content-max-width: 1200px;
+}
+
+[data-chat-width='full'] {
+  --chat-content-max-width: 100%;
 }
 
 /* Hide scrollbars until scroll (cross-browser) */
@@ -699,9 +710,104 @@ code {
 }
 
 /* ── Hermes Workspace Themes ── */
-[data-theme='hermes-official'] {
+
+[data-theme='matrix'] {
+  --theme-bg: #020804;
+  --theme-sidebar: #030d06;
+  --theme-panel: #041008;
+  --theme-card: #07130a;
+  --theme-card2: #0a1c0f;
+  --theme-border: rgba(0, 255, 65, 0.28);
+  --theme-border-subtle: rgba(0, 255, 65, 0.13);
+  --theme-text: #d8ffe3;
+  --theme-muted: rgba(216, 255, 227, 0.58);
+  --theme-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.72);
+  --theme-shadow-2: 0 10px 28px rgba(0, 0, 0, 0.62);
+  --theme-shadow-3: 0 18px 54px rgba(0, 0, 0, 0.72);
+  --theme-glass: rgba(2, 8, 4, 0.88);
+  --theme-focus: #00ff41;
+  --theme-accent: #00ff41;
+  --theme-accent-secondary: #7cff9b;
+  --theme-accent-subtle: rgba(0, 255, 65, 0.13);
+  --theme-accent-border: rgba(0, 255, 65, 0.36);
+  --theme-active: #00ff41;
+  --theme-link: #7cff9b;
+  --theme-success: #00ff41;
+  --theme-warning: #d6ff5f;
+  --theme-danger: #ff5f6d;
+  --theme-stripe: rgba(0, 255, 65, 0.055);
+  --theme-header-bg: #030d06;
+  --theme-header-border: rgba(0, 255, 65, 0.26);
+  --chat-user-bg: #07230d;
+  --chat-user-border: rgba(0, 255, 65, 0.34);
+  --chat-user-foreground: #eaffef;
+  --chat-assistant-bg: #041008;
+  --chat-assistant-border: rgba(0, 255, 65, 0.15);
+  --chat-assistant-foreground: #d8ffe3;
+  --composer-bg: #020b05;
+  --composer-border: rgba(0, 255, 65, 0.3);
+  --composer-placeholder: rgba(216, 255, 227, 0.42);
+  --tool-card-bg: #041008;
+  --tool-card-border: rgba(0, 255, 65, 0.2);
+  --tool-card-title: #eaffef;
+  --tool-card-muted: rgba(216, 255, 227, 0.56);
+  --code-bg: #010602;
+  --code-border: rgba(0, 255, 65, 0.18);
+  --theme-input: #07130a;
+}
+
+[data-theme='matrix-light'] {
+  --theme-bg: #f4fff6;
+  --theme-sidebar: #eafff0;
+  --theme-panel: #f0fff4;
+  --theme-card: #ffffff;
+  --theme-card2: #f4fff6;
+  --theme-border: rgba(0, 126, 34, 0.2);
+  --theme-border-subtle: rgba(0, 126, 34, 0.1);
+  --theme-text: #062a12;
+  --theme-muted: rgba(6, 42, 18, 0.55);
+  --theme-shadow-1: 0 1px 2px rgba(0, 80, 20, 0.08);
+  --theme-shadow-2: 0 10px 28px rgba(0, 80, 20, 0.1);
+  --theme-shadow-3: 0 18px 54px rgba(0, 80, 20, 0.14);
+  --theme-glass: rgba(244, 255, 246, 0.88);
+  --theme-focus: #008f2d;
+  --theme-accent: #008f2d;
+  --theme-accent-secondary: #006b22;
+  --theme-accent-subtle: rgba(0, 143, 45, 0.1);
+  --theme-accent-border: rgba(0, 143, 45, 0.3);
+  --theme-active: #008f2d;
+  --theme-link: #006b22;
+  --theme-success: #008f2d;
+  --theme-warning: #7a6200;
+  --theme-danger: #c0392b;
+  --theme-stripe: rgba(0, 143, 45, 0.04);
+  --theme-header-bg: #eafff0;
+  --theme-header-border: rgba(0, 126, 34, 0.18);
+  --chat-user-bg: #eafff1;
+  --chat-user-border: rgba(0, 126, 34, 0.22);
+  --chat-user-foreground: #062a12;
+  --chat-assistant-bg: #ffffff;
+  --chat-assistant-border: rgba(0, 126, 34, 0.12);
+  --chat-assistant-foreground: #062a12;
+  --composer-bg: #f4fff6;
+  --composer-border: rgba(0, 126, 34, 0.22);
+  --composer-placeholder: rgba(6, 42, 18, 0.38);
+  --tool-card-bg: #f0fff4;
+  --tool-card-border: rgba(0, 126, 34, 0.15);
+  --tool-card-title: #062a12;
+  --tool-card-muted: rgba(6, 42, 18, 0.55);
+  --code-bg: #eafff0;
+  --code-border: rgba(0, 126, 34, 0.14);
+  --theme-input: #ffffff;
+}
+
+[data-theme='claude-official'] {
   --theme-bg: #0a0e1a;
-  --theme-sidebar: #0d1220;
+  /* Sidebar gets a deeper shade than the main bg so the column
+     reads as its own surface. Iter 014 fix: previously the sidebar
+     and bg were nearly identical (#0d1220 vs #0a0e1a) which made
+     the sidebar look transparent against the dashboard. */
+  --theme-sidebar: #060914;
   --theme-panel: #0d1220;
   --theme-card: #11182a;
   --theme-card2: #151d32;
@@ -745,7 +851,7 @@ code {
   --theme-input: #0f1728;
 }
 
-[data-theme='hermes-classic'] {
+[data-theme='claude-classic'] {
   --theme-bg: #0d0f12;
   --theme-sidebar: #13171c;
   --theme-panel: #13171c;
@@ -792,7 +898,7 @@ code {
   --theme-input: #232a33;
 }
 
-[data-theme='hermes-slate'] {
+[data-theme='claude-slate'] {
   --theme-bg: #0d1117;
   --theme-sidebar: #0d1117;
   --theme-panel: #161b22;
@@ -838,7 +944,7 @@ code {
   --theme-input: #232a33;
 }
 
-[data-theme='hermes-official-light'] {
+[data-theme='claude-official-light'] {
   --theme-bg: #f7f7f1;
   --theme-sidebar: #f2f3ed;
   --theme-panel: #f4f5ef;
@@ -884,7 +990,7 @@ code {
   --theme-input: #fbfcf7;
 }
 
-[data-theme='hermes-classic-light'] {
+[data-theme='claude-classic-light'] {
   --theme-bg: #f5f2ed;
   --theme-sidebar: #eee8df;
   --theme-panel: #f0ebe4;
@@ -930,7 +1036,7 @@ code {
   --theme-input: #fffdf9;
 }
 
-[data-theme='hermes-slate-light'] {
+[data-theme='claude-slate-light'] {
   --theme-bg: #f6f8fa;
   --theme-sidebar: #f3f5f7;
   --theme-panel: #eef2f6;
@@ -976,14 +1082,13 @@ code {
   --theme-input: #ffffff;
 }
 
-
 /* ============================================================
    Hermes Nous — matches nousresearch.com/hermes-agent chrome
    Dark:  deep teal #041C1C background, cream #ffe6cb accent
    Light: warm parchment, deep teal text, amber #ffac02 accent
    ============================================================ */
 
-[data-theme='hermes-nous'] {
+[data-theme='claude-nous'] {
   --theme-bg: #041c1c;
   --theme-sidebar: #06282a;
   --theme-panel: #06282a;
@@ -1029,7 +1134,7 @@ code {
   --theme-input: #06282a;
 }
 
-[data-theme='hermes-nous-light'] {
+[data-theme='claude-nous-light'] {
   --theme-bg: #f8faf8;
   --theme-sidebar: #f2f6f4;
   --theme-panel: #f4f7f5;
@@ -1075,42 +1180,42 @@ code {
   --theme-input: #fbfdfb;
 }
 
-[data-theme='hermes-nous'] html,
-[data-theme='hermes-nous'] body,
-[data-theme='hermes-nous'] #root,
-[data-theme='hermes-nous'] .dark,
-[data-theme='hermes-official'] html,
-[data-theme='hermes-official'] body,
-[data-theme='hermes-official'] #root,
-[data-theme='hermes-official'] .dark,
-[data-theme='hermes-classic'] html,
-[data-theme='hermes-classic'] body,
-[data-theme='hermes-classic'] #root,
-[data-theme='hermes-classic'] .dark,
-[data-theme='hermes-slate'] html,
-[data-theme='hermes-slate'] body,
-[data-theme='hermes-slate'] #root,
-[data-theme='hermes-slate'] .dark {
+[data-theme='claude-nous'] html,
+[data-theme='claude-nous'] body,
+[data-theme='claude-nous'] #root,
+[data-theme='claude-nous'] .dark,
+[data-theme='claude-official'] html,
+[data-theme='claude-official'] body,
+[data-theme='claude-official'] #root,
+[data-theme='claude-official'] .dark,
+[data-theme='claude-classic'] html,
+[data-theme='claude-classic'] body,
+[data-theme='claude-classic'] #root,
+[data-theme='claude-classic'] .dark,
+[data-theme='claude-slate'] html,
+[data-theme='claude-slate'] body,
+[data-theme='claude-slate'] #root,
+[data-theme='claude-slate'] .dark {
   background-color: var(--theme-bg);
   color: var(--theme-text);
 }
 
-[data-theme='hermes-nous-light'] html,
-[data-theme='hermes-nous-light'] body,
-[data-theme='hermes-nous-light'] #root,
-[data-theme='hermes-nous-light'] .light,
-[data-theme='hermes-official-light'] html,
-[data-theme='hermes-official-light'] body,
-[data-theme='hermes-official-light'] #root,
-[data-theme='hermes-official-light'] .light,
-[data-theme='hermes-classic-light'] html,
-[data-theme='hermes-classic-light'] body,
-[data-theme='hermes-classic-light'] #root,
-[data-theme='hermes-classic-light'] .light,
-[data-theme='hermes-slate-light'] html,
-[data-theme='hermes-slate-light'] body,
-[data-theme='hermes-slate-light'] #root,
-[data-theme='hermes-slate-light'] .light {
+[data-theme='claude-nous-light'] html,
+[data-theme='claude-nous-light'] body,
+[data-theme='claude-nous-light'] #root,
+[data-theme='claude-nous-light'] .light,
+[data-theme='claude-official-light'] html,
+[data-theme='claude-official-light'] body,
+[data-theme='claude-official-light'] #root,
+[data-theme='claude-official-light'] .light,
+[data-theme='claude-classic-light'] html,
+[data-theme='claude-classic-light'] body,
+[data-theme='claude-classic-light'] #root,
+[data-theme='claude-classic-light'] .light,
+[data-theme='claude-slate-light'] html,
+[data-theme='claude-slate-light'] body,
+[data-theme='claude-slate-light'] #root,
+[data-theme='claude-slate-light'] .light {
   background-color: var(--theme-bg);
   color: var(--theme-text);
 }
@@ -1120,10 +1225,10 @@ code {
    to theme-appropriate values so ALL existing Tailwind classes work.
    Dark: 50=darkest surface, 950=lightest text (already set above) */
 
-[data-theme='hermes-nous'],
-[data-theme='hermes-official'],
-[data-theme='hermes-classic'],
-[data-theme='hermes-slate'] {
+[data-theme='claude-nous'],
+[data-theme='claude-official'],
+[data-theme='claude-classic'],
+[data-theme='claude-slate'] {
   --color-primary-50: var(--theme-panel);
   --color-primary-100: var(--theme-card);
   --color-primary-200: var(--theme-border);
@@ -1146,10 +1251,10 @@ code {
 /* ── Tailwind primary token remaps for light themes ────────────────────
    Light: 50=lightest surface, 950=darkest text */
 
-[data-theme='hermes-nous-light'],
-[data-theme='hermes-official-light'],
-[data-theme='hermes-classic-light'],
-[data-theme='hermes-slate-light'] {
+[data-theme='claude-nous-light'],
+[data-theme='claude-official-light'],
+[data-theme='claude-classic-light'],
+[data-theme='claude-slate-light'] {
   color-scheme: light !important;
   --color-primary-50: var(--theme-card) !important;
   --color-primary-100: var(--theme-card2) !important;
@@ -1192,7 +1297,7 @@ code {
 /* ════════════════════════════════════════════════════════════════════
    EDITORIAL VOCABULARY — v2 surface pass
    Apply these utilities + treatments across components for the
-   Hermes/Nous editorial museum-catalog feel.
+   Claude/Nous editorial museum-catalog feel.
    ════════════════════════════════════════════════════════════════════ */
 
 /* Editorial micro-label (uppercase, tracked, restrained)
@@ -1255,7 +1360,9 @@ code {
 [data-theme$='-light'] .shadow-lg,
 [data-theme$='-light'] .shadow-xl,
 [data-theme$='-light'] .shadow-2xl {
-  box-shadow: 0 1px 0 rgba(22, 49, 95, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 1px 0 rgba(22, 49, 95, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
 }
 [data-theme$='-light'] .shadow-md {
   box-shadow: 0 1px 0 rgba(22, 49, 95, 0.04) !important;
@@ -1417,3 +1524,10 @@ code {
       border-radius 0.3s ease;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   SciFi Theme — imported AFTER all other theme rules so that
+   its CSS variable remaps take precedence over the default
+   Tailwind oklch values and .system dark mode overrides.
+   ═══════════════════════════════════════════════════════════════════ */
+@import './scifi-theme.css';

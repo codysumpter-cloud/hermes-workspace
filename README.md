@@ -1,19 +1,20 @@
 <div align="center">
 
-<img src="./public/hermes-avatar.webp" alt="Hermes Workspace" width="80" style="border-radius: 16px" />
+<img src="./public/claude-avatar.webp" alt="Hermes Workspace" width="80" style="border-radius: 16px" />
+<!-- avatar filename retained for cache stability — do not rename without coordinated cache-bust -->
 
 # Hermes Workspace
 
 **Your AI agent's command center — chat, files, memory, skills, and terminal in one place.**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-2557b7.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.0-2557b7.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-6366F1.svg)](CONTRIBUTING.md)
 
 > Not a chat wrapper. A complete workspace — orchestrate agents, browse memory, manage skills, and control everything from one interface.
 
-> **v2 — zero-fork. Clone, don't fork.** Runs on vanilla [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) installed via Nous's own installer. No patches, no drift.
+> **v2 — zero-fork.** Clone, don't fork. Runs on vanilla [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) installed via Nous's own installer. Chat, sessions, memory, skills, jobs, MCP, terminal, dashboard, Agent View, and Operations are all in vanilla parity. **Conductor** currently requires an additional dashboard plugin not in upstream yet — the UI shows a clear placeholder when that endpoint isn't available ([#262](https://github.com/outsourc-e/hermes-workspace/issues/262)). Everything else works with zero patches.
 
 ![Hermes Workspace](./docs/screenshots/splash.png)
 
@@ -21,14 +22,40 @@
 
 ---
 
-## ✨ Features
+## Swarm Mode
 
-- 🤖 **Hermes Agent Integration** — Direct gateway connection with real-time SSE streaming
-- 🎨 **8-Theme System** — Official, Classic, Slate, Mono — each with light and dark variants
-- 🔒 **Security Hardened** — Auth middleware on all API routes, CSP headers, exec approval prompts
-- 📱 **Mobile-First PWA** — Full feature parity on any device via Tailscale
-- ⚡ **Live SSE Streaming** — Real-time agent output with tool call rendering
-- 🧠 **Memory & Skills** — Browse, search, and edit agent memory; explore 2,000+ skills
+Hermes Agent Swarm turns the workspace into a live control plane: unlimited Hermes Agents, 1 orchestrator, 0 humans manually dispatching.
+Persistent tmux workers keep context across tasks, rotate safely, and report proof-bearing checkpoints.
+Role-based dispatch routes builders, reviewers, docs, research, ops, triage, QA, and lab lanes without turning Eric into the task router.
+A byte-verified review gate protects release branches before PRs ship.
+Autonomous PR/issue lanes, lab experiments, and the repair playbook keep the machine moving while humans handle judgment.
+
+Start here: [docs/swarm/](./docs/swarm/)
+
+- **Orchestrator Chat** — ask the control plane for one task, a decomposed mission, or a full broadcast.
+- **Multi-Agent Control Plane** — see persistent Hermes Agents, roles, state, runtime, and routing wires in one surface.
+- **Kanban TaskBoard** — plan backlog, ready, running, review, blocked, and done lanes without leaving the workspace.
+- **Reports + Inbox** — review checkpoints, blockers, handoffs, and ready-for-human decisions.
+- **TUI View built in** — attach to tmux-backed workers or fall back to a live shell/log stream.
+
+---
+
+## ✨ What's inside
+
+- 💬 **Chat** — Real-time SSE streaming, tool call rendering, multi-session, markdown + syntax highlighting
+- 🧠 **Memory** — Browse, search, and edit agent memory; markdown live editor
+- 🧩 **Skills** — Browse 2,000+ skills with origin badges, filters, source paths, marketplace
+- 🔌 **MCP** — Full /mcp page (catalog + marketplace + sources), or fallback to local config CRUD
+- 📁 **Files + Terminal** — Full workspace file browser with Monaco; cross-platform PTY terminal
+- 🎮 **Operations** — Multi-agent dashboard with profile presets (Sage/Trader/Builder/Scribe/Ops) and 'Needs setup' detection
+- 📡 **Conductor** — Mission dispatch + decomposition (requires upstream dashboard plugin, see [#262](https://github.com/outsourc-e/hermes-workspace/issues/262))
+- 👥 **Agent View** — Live agent panel in chat with avatar, queue, history, usage meter
+- 🐝 **Swarm Mode** — Persistent tmux-backed Hermes Agent workers with role-based dispatch
+- 🗄️ **Dashboard** — Aggregated overview: sessions, model mix, cost ledger, attention card, ops strip
+- 🎨 **Themes** — Hermes, Nous, Bronze, Slate, Mono (light + dark)
+- 🔒 **Security** — Auth middleware on every route, CSP, path-traversal guard, fail-closed remote bind
+- 📱 **PWA + Tailscale** — Install as a native-feeling app; access from any device on your tailnet
+- ⚙️ **Capability gates** — Features that need upstream endpoints (Conductor) show a clean placeholder instead of failing mid-action
 
 ---
 
@@ -54,13 +81,21 @@
 
 ## 🚀 Quick Start
 
-### One-line install (recommended)
+Three paths — pick the one that matches you:
+
+| Path | Best for | Time |
+|---|---|---|
+| **🐳 [Docker Compose](#-docker-quickstart)** | Self-hosters, home labs, "give me a compose gig" | ~2 min |
+| **🌐 One-line install** | Local dev on macOS/Linux | ~3 min |
+| **🔌 Attach to existing `hermes-agent`** | You already run Hermes Agent | ~1 min |
+
+### One-line install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/outsourc-e/hermes-workspace/main/install.sh | bash
 ```
 
-This installs `hermes-agent` from PyPI, clones this repo, sets up `.env`, and installs deps. Then:
+This installs `hermes-agent` via Nous's official installer, clones this repo, sets up `.env`, and installs dependencies. Then:
 
 ```bash
 hermes gateway run                  # terminal 1
@@ -73,7 +108,7 @@ Open http://localhost:3000. That's it.
 
 ### Already running `hermes-agent`? Attach the workspace to it
 
-If you already have `hermes-agent` installed (via Nous's installer, `pip install`, systemd, Docker, etc.) and it's serving the gateway at `http://<host>:8642`, you don't need to reinstall anything — just point the workspace at it.
+If you already have `hermes-agent` installed (via Nous's official installer, a source checkout, systemd, Docker, or another existing setup) and it's serving the gateway at `http://<host>:8642`, you don't need to reinstall anything — just point the workspace at it.
 
 ```bash
 git clone https://github.com/outsourc-e/hermes-workspace.git
@@ -81,34 +116,60 @@ cd hermes-workspace
 pnpm install
 cp .env.example .env
 
-# Point at your existing gateway. Local, Tailscale, LAN — whatever URL works.
+# Point at your existing Hermes Agent services.
 echo 'HERMES_API_URL=http://127.0.0.1:8642' >> .env
+# Zero-fork installs also need the separate dashboard API for config/sessions/skills/jobs.
+echo 'HERMES_DASHBOARD_URL=http://127.0.0.1:9119' >> .env
 
 # If your gateway was started with API_SERVER_KEY (auth enabled), set the same value:
-# echo 'HERMES_API_TOKEN=<your-key>' >> .env
+# echo 'HERMES_API_TOKEN=***' >> .env
 
-pnpm dev                            # http://localhost:3000
+pnpm dev                            # http://localhost:3000 (override with PORT=4000 pnpm dev)
 ```
 
 Requirements on the agent side:
 
 - Gateway bound to an address the workspace can reach (typically `API_SERVER_HOST=0.0.0.0` + the port exposed).
-- `API_SERVER_ENABLED=true` in `~/.hermes/.env` (or the agent's env). Enhanced endpoints (`/api/sessions`, `/api/skills`, `/api/config`, `/api/jobs`) come online automatically when the API server is enabled.
+- `API_SERVER_ENABLED=true` in `~/.hermes/.env` (or the agent's env) so the gateway serves core APIs on `:8642`.
+- `hermes dashboard` running (default `http://127.0.0.1:9119`) for zero-fork installs. The dashboard provides config, sessions, skills, and jobs APIs.
 - If `API_SERVER_KEY` is set, the workspace must pass the same value via `HERMES_API_TOKEN` — otherwise leave both unset.
 
-Verify: `curl http://127.0.0.1:8642/health` should return ok. Then start the workspace and complete onboarding — it'll detect the existing gateway and unlock the enhanced panes (sessions, memory, skills, dashboard) automatically.
+Verify both services before opening the workspace:
+
+- `curl http://127.0.0.1:8642/health` should return ok.
+- `curl http://127.0.0.1:9119/api/status` should return dashboard metadata.
+
+Then start the workspace and complete onboarding — it should detect the gateway + dashboard pair and unlock the enhanced panes automatically.
+
+#### Running on a remote host (Tailscale / VPN / LAN)
+
+If the workspace and its browser live on different machines — e.g. the workspace runs on a Pi/Mac/home server and you access it from your phone over Tailscale — point `HERMES_API_URL` at the **reachable** backend address, not `127.0.0.1`:
+
+```bash
+# On the server running the workspace + gateway:
+echo 'HERMES_API_URL=http://100.x.y.z:8642' >> .env
+echo 'HERMES_DASHBOARD_URL=http://100.x.y.z:9119' >> .env
+
+# Also tell the gateway to listen on all interfaces so Tailscale peers can reach it.
+# In ~/.hermes/.env (or wherever the gateway reads config):
+echo 'API_SERVER_HOST=0.0.0.0' >> ~/.hermes/.env
+```
+
+Then restart the gateway, dashboard, and workspace. Hit the workspace from the remote device and the connection probe will use the Tailscale IP instead of localhost. Both `HERMES_API_URL` and `HERMES_DASHBOARD_URL` must be set to Tailscale/LAN-reachable URLs — setting only one will leave the other probing `127.0.0.1` and failing.
+
+**If you've already started the workspace**, you can update both URLs from `Settings → Connection` without restarting. The values are persisted to `~/.hermes/workspace-overrides.json` and take effect immediately (gateway capabilities are reprobed on save). Editing `.env` still works for pre-start config and for CI/containers.
 
 ---
 
 ### Manual install
 
-Hermes Workspace works with any OpenAI-compatible backend. If your backend also exposes Hermes gateway APIs, enhanced features like sessions, memory, skills, and jobs unlock automatically.
+Hermes Workspace works with any OpenAI-compatible backend. If your backend also exposes Hermes Agent gateway APIs, enhanced features like sessions, memory, skills, and jobs unlock automatically.
 
 #### Prerequisites
 
 - **Node.js 22+** — [nodejs.org](https://nodejs.org/)
 - **An OpenAI-compatible backend** — local, self-hosted, or remote
-- **Optional:** Python 3.11+ if you want to run a Hermes gateway locally
+- **Optional:** Python 3.11+ if you want to run a Hermes Agent gateway locally
 
 #### Step 1: Start your backend
 
@@ -117,7 +178,7 @@ Point Hermes Workspace at any backend that supports:
 - `POST /v1/chat/completions`
 - `GET /v1/models` recommended
 
-Example Hermes gateway setup (from scratch):
+Example Hermes Agent gateway setup (from scratch):
 
 ```bash
 # Install hermes-agent via Nous's official installer
@@ -142,29 +203,7 @@ printf '\nHERMES_API_URL=http://127.0.0.1:8642\n' >> .env
 pnpm dev                   # Starts on http://localhost:3000
 ```
 
-> **Verify:** Open `http://localhost:3000` and complete the onboarding flow. First connect the backend, then verify chat works. If your gateway exposes Hermes APIs, advanced features appear automatically.
-
-### Agent W Managed Companion
-
-When Hermes Workspace is running behind Agent W's local HTTPS proxy, the
-managed companion entrypoint is:
-
-```bash
-https://localhost:4445/chat/new
-```
-
-For local validation from the workspace checkout:
-
-```bash
-pnpm exec tsc --noEmit
-pnpm test
-pnpm build
-pnpm smoke:managed
-```
-
-`pnpm smoke:managed` checks the managed `4445` surface and fails if the recent
-PM2 error log still contains the missing-asset/runtime signatures that show up
-when `dist` drifts under a live server process.
+> **Verify:** Open `http://localhost:3000` and complete the onboarding flow. First connect the backend, then verify chat works. If your gateway exposes Hermes Agent APIs, advanced features appear automatically.
 
 #### Environment Variables
 
@@ -172,9 +211,9 @@ when `dist` drifts under a live server process.
 # OpenAI-compatible backend URL
 HERMES_API_URL=http://127.0.0.1:8642
 
-# Optional: provider keys the Hermes gateway can read at runtime.
+# Optional: provider keys the Hermes Agent gateway can read at runtime.
 # You only need the key(s) for whichever provider(s) you actually use.
-# ANTHROPIC_API_KEY=sk-ant-...         # Claude
+# ANTHROPIC_API_KEY=***         # Anthropic
 # OPENAI_API_KEY=sk-...                # GPT / o-series
 # OPENROUTER_API_KEY=sk-or-v1-...      # OpenRouter (incl. free models)
 # GOOGLE_API_KEY=AIza...               # Gemini
@@ -192,7 +231,7 @@ Hermes Workspace supports two modes with local models:
 
 ### Portable Mode (Easiest)
 
-Point the workspace directly at your local server — no Hermes gateway needed.
+Point the workspace directly at your local server — no Hermes Agent gateway needed.
 
 ### Atomic Chat
 
@@ -217,7 +256,7 @@ Chat works immediately. Sessions, memory, and skills show "Not Available" — th
 
 ### Enhanced Mode (Full Features)
 
-Route through the Hermes gateway for sessions, memory, skills, jobs, and tools.
+Route through the Hermes Agent gateway for sessions, memory, skills, jobs, and tools.
 
 Here are two explicit `~/.hermes/config.yaml` examples for the local providers we support directly in the workspace:
 
@@ -253,16 +292,89 @@ You can adapt the same shape for other OpenAI-compatible local runners, but `Ato
 API_SERVER_ENABLED=true
 ```
 
-**3. Start the gateway and workspace:**
+**3. Start the gateway, dashboard, and workspace:**
 
 ```bash
-hermes gateway run          # Starts on :8642
-HERMES_API_URL=http://127.0.0.1:8642 pnpm dev
+hermes gateway run          # Starts core APIs on :8642
+hermes dashboard            # Starts dashboard APIs on :9119
+HERMES_API_URL=http://127.0.0.1:8642 \
+HERMES_DASHBOARD_URL=http://127.0.0.1:9119 \
+pnpm dev
 ```
 
-All workspace features unlock automatically — sessions persist, memory saves across chats, skills are available, and the dashboard shows real usage data.
+For authenticated gateways, also set `HERMES_API_TOKEN` in the workspace environment to the same value as `API_SERVER_KEY`.
+
+All workspace features unlock automatically once both services are reachable — sessions persist, memory saves across chats, skills are available, and the dashboard shows real usage data.
 
 > **Works with any OpenAI-compatible server** — Atomic Chat, Ollama, LM Studio, vLLM, llama.cpp, LocalAI, etc. Just change the `base_url` and `model` in the config above.
+
+---
+
+## 🤝 Pair an Agent with the Workspace
+
+Workspace is the UI. **Hermes Agent** is the brain. They talk over two HTTP services on localhost (or any reachable network).
+
+```
+┌───────────────┐         :8642 gateway          ┌────────────────┐
+│   Workspace    │ ─────────────────────▶ │  Hermes Agent  │
+│   :3000 (UI)   │ ◀───────────────────── │  CLI / brain   │
+└───────────────┘         :9119 dashboard        └────────────────┘
+```
+
+### Two services, three commands
+
+```bash
+hermes gateway run     # terminal 1 · :8642 · chat, models, streaming, jobs
+hermes dashboard       # terminal 2 · :9119 · sessions, skills, config, MCP
+cd ~/hermes-workspace && pnpm dev   # terminal 3 · :3000 · the UI
+```
+
+> **Tip:** `pnpm start:all` starts gateway + dashboard + workspace in one shot if you've installed via the one-liner.
+
+### Verify the pairing
+
+```bash
+curl http://127.0.0.1:8642/health        # → {"status":"ok","platform":"hermes-agent"}
+curl http://127.0.0.1:9119/api/status    # → {"status":"ok", ...}
+```
+
+Both must return `200`. If either fails, the workspace will fall back to **portable mode** (chat works, sessions/skills/memory show "Not Available").
+
+### `.env` settings the workspace cares about
+
+```env
+# Required: where the gateway is
+HERMES_API_URL=http://127.0.0.1:8642
+
+# Recommended: where the dashboard is (unlocks sessions/skills/config/MCP/jobs)
+HERMES_DASHBOARD_URL=http://127.0.0.1:9119
+
+# Only if your gateway was started with API_SERVER_KEY=... — paste the same value:
+# HERMES_API_TOKEN=***
+
+# Optional: password-protect the web UI itself
+# HERMES_PASSWORD=***
+```
+
+### Common pairing scenarios
+
+| Scenario | Set this |
+|---|---|
+| Workspace + gateway on the same machine | `HERMES_API_URL=http://127.0.0.1:8642`, `HERMES_DASHBOARD_URL=http://127.0.0.1:9119` |
+| Gateway on a remote server (Tailscale / VPN) | Set both URLs to the reachable IP (e.g. `http://100.x.y.z:8642`) and add `API_SERVER_HOST=0.0.0.0` to the gateway's `~/.hermes/.env` |
+| Already-running `hermes-agent` from upstream installer | Just set `HERMES_API_URL` + `HERMES_DASHBOARD_URL` and skip the one-liner installer |
+| Multiple agent profiles | Profiles live under `~/.hermes/profiles/<name>` — the dashboard switches between them at runtime; workspace follows automatically |
+
+### Live re-pairing (no restart)
+
+If you've already started the workspace, change either URL from **Settings → Connection** without restarting. Values persist to `~/.hermes/workspace-overrides.json` and gateway capabilities are reprobed on save.
+
+### Troubleshooting
+
+- **`Could not reach Hermes gateway on 8645, 8642, or 8643`** — gateway isn't running, or `HERMES_API_URL` points somewhere unreachable. Run `hermes gateway run` and re-check.
+- **Workspace shows "portable mode" / extended APIs missing** — dashboard isn't running. Start `hermes dashboard` in another terminal and refresh.
+- **`Unauthorized` on every API call** — gateway has `API_SERVER_KEY` set but workspace is missing `HERMES_API_TOKEN`. Match them.
+- **`Could not connect` from your phone over Tailscale** — gateway is bound to loopback. Set `API_SERVER_HOST=0.0.0.0` in `~/.hermes/.env` and restart it.
 
 ---
 
@@ -290,7 +402,7 @@ Edit `.env` and add **at least one** LLM provider key — whichever provider you
 
 ```env
 # Pick one (or more). You do NOT need all of these.
-ANTHROPIC_API_KEY=sk-ant-...           # Claude
+# ANTHROPIC_API_KEY=***         # Anthropic
 # OPENAI_API_KEY=sk-...                # GPT / o-series
 # OPENROUTER_API_KEY=sk-or-v1-...      # OpenRouter (free models available)
 # GOOGLE_API_KEY=AIza...               # Gemini
@@ -313,28 +425,33 @@ This pulls two pre-built images and starts them:
 
 No local build. First run takes a minute to pull; subsequent starts are instant.
 Agent state (config, sessions, skills, memory, credentials) persists in the
-`hermes-data` named volume, so containers can be recreated without data loss.
+legacy-named `claude-data` Docker volume, so containers can be recreated without data loss.
 
 ### Step 3: Access the Workspace
 
 Open `http://localhost:3000` and complete the onboarding.
 
-> **Verify:** Check the Docker logs for `[gateway] Connected to Hermes` — this confirms the workspace successfully connected to the agent.
+> **Verify:** Check the Docker logs for `[gateway] Connected to Hermes Agent` — this confirms the workspace successfully connected to the agent.
 
 ### Building from source
 
-Want to hack on the workspace or the bundled agent Dockerfile? Use the dev overlay:
+Want to hack on the workspace and have local changes hot-built into the
+container? Use the dev overlay:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-The base `docker-compose.yml` stays untouched — the overlay adds `build:` blocks
-that take priority over `image:`, so both services compile from local source.
+The base `docker-compose.yml` stays untouched — the overlay adds a `build:`
+block for the `hermes-workspace` service so the local repo is compiled
+instead of pulled. The Hermes Agent service still uses the canonical
+`nousresearch/hermes-agent:latest` image; if you need a custom agent
+build, tag it locally and override `image:` in your own
+`compose.override.yml`.
 
 ### Using a Pre-Built Image (Coolify / Easypanel / Dokploy / Unraid)
 
-Deploying Project Workspace to a PaaS or home-lab stack? Pull the image
+Deploying Hermes Workspace to a PaaS or home-lab stack? Pull the image
 directly from GitHub Container Registry:
 
 ```
@@ -461,54 +578,31 @@ Features pending cloud infrastructure:
 
 ---
 
-## ✨ Features
+## 🔒 Security & deployment env vars
 
-### 💬 Chat
+Key safeguards — most are on by default, the env vars below are for remote / Docker deployments where you opt out of the loopback default.
 
-- Real-time SSE streaming with tool call rendering
-- Agent-authored artifact events surfaced in the inspector
-- Multi-session management with full history
-- Markdown + syntax highlighting
-- Chronological message ordering with merge dedup
-- Inspector panel for session activity, memory, and skills
+### Built-in safeguards
 
-### 🧠 Memory
-
-- Browse and edit agent memory files
-- Search across memory entries
-- Markdown preview with live editing
-
-### 🧩 Skills
-
-- Browse 2,000+ skills from the registry
-- View skill details, categories, and documentation
-- Skill management per session
-
-### 📁 Files
-
-- Full workspace file browser
-- Navigate directories, preview and edit files
-- Monaco editor integration
-
-### 💻 Terminal
-
-- Full PTY terminal with cross-platform support
-- Persistent shell sessions
-- Direct workspace access
-
-### 🎨 Themes
-
-- 8 themes: Official, Classic, Slate, Mono — each with light and dark variants
-- Theme persists across sessions
-- Full mobile dark mode support
-
-### 🔒 Security
-
-- Auth middleware on all API routes
+- Auth middleware on every API route
 - CSP headers via meta tags
-- Path traversal prevention on file/memory routes
+- Path-traversal prevention on file/memory routes (real-path boundary check, not string prefix)
 - Rate limiting on endpoints
-- Optional password protection for web UI
+- Fail-closed startup guard: refuses to bind non-loopback without `HERMES_PASSWORD`
+- Session cookies: `HttpOnly` + `SameSite=Strict` + `Secure` (in production)
+- Optional password protection for the web UI
+
+### Env vars for remote / Docker deployments
+
+- `HERMES_PASSWORD` — required whenever `HOST ≠ 127.0.0.1` (legacy `CLAUDE_PASSWORD` still honored as a fallback)
+- `COOKIE_SECURE=1` — force the `Secure` cookie flag when terminating HTTPS at a proxy
+- `COOKIE_SECURE=0` — disable the `Secure` flag for plain-HTTP LAN deployments (`HOST=0.0.0.0` without HTTPS); without this, browsers silently drop session cookies and login fails (#149)
+- `TRUST_PROXY=1` — trust `x-forwarded-for` / `x-real-ip` (only set behind a sanitizing reverse proxy)
+- `HERMES_DASHBOARD_TOKEN` — explicit bearer for dashboard API (preferred over the legacy HTML-scrape fallback)
+- `HERMES_API_TOKEN` — bearer for the Hermes Agent gateway when started with `API_SERVER_KEY` (legacy `CLAUDE_API_TOKEN` still honored)
+- `HERMES_ALLOW_INSECURE_REMOTE=1` — bypass the fail-closed guard (not recommended)
+
+See `.env.example` for the full list. Credits to [@kiosvantra](https://github.com/kiosvantra) for the security audit surfacing #121–#125.
 
 ---
 
@@ -520,7 +614,7 @@ The workspace auto-detects your gateway's capabilities on startup. Check your te
 
 ```
 [gateway] http://127.0.0.1:8642 available: health, models; missing: sessions, skills, memory, config, jobs
-[gateway] Missing Hermes APIs detected. Update hermes-agent to the latest version.
+[gateway] Missing Hermes Agent APIs detected. Update hermes-agent to the latest version.
 ```
 
 **Fix:** Upgrade to the latest stock `hermes-agent`, which ships the extended endpoints:
@@ -534,7 +628,7 @@ hermes gateway run
 
 ### "Connection refused" or workspace hangs on load
 
-Your Hermes gateway isn't running. Start it:
+Your Hermes Agent gateway isn't running. Start it:
 
 ```bash
 hermes gateway run
@@ -558,9 +652,11 @@ Verify: `curl http://localhost:8642/health` should return `{"status": "ok"}`.
 
 ### "Using upstream NousResearch/hermes-agent"
 
-v2+ runs on vanilla `hermes-agent` with full feature parity. The upstream ships all extended endpoints (sessions, memory, skills, config). **No fork required, ever.**
+v2+ runs on vanilla `hermes-agent`. **No fork required.** The upstream ships every endpoint the workspace needs for chat, sessions, memory, skills, config, jobs, MCP, terminal, and Agent View.
 
-If you're pinned to an older `hermes-agent` version and missing endpoints, the workspace will degrade gracefully to **portable mode** with basic chat — upgrade upstream to restore full features.
+**One known exception:** **Conductor** uses a dashboard plugin that hasn't landed upstream yet. When the workspace detects the missing endpoint, the Conductor screen shows a clear "Upstream not ready" placeholder with a link to [issue #262](https://github.com/outsourc-e/hermes-workspace/issues/262) instead of failing mid-action. Everything else works.
+
+If you're pinned to an older `hermes-agent` version and missing core endpoints, the workspace will degrade gracefully to **portable mode** with basic chat — upgrade upstream to restore full features.
 
 ### Docker: "Unauthorized" or "Connection refused" to hermes-agent
 
@@ -603,33 +699,51 @@ If using Docker Compose and getting auth errors:
    ```
    Look for: `[gateway] http://hermes-agent:8642 mode=...` — if it shows `mode=disconnected`, the agent isn't running correctly.
 
-### Docker: "hermes webapi command not found"
+### Docker: older `claude webapi` docs are wrong
 
-The `hermes webapi` command referenced in older docs doesn't exist. The correct command is:
+The `claude webapi` command referenced in some pre-rename docs doesn't exist. The correct commands are:
 
 ```bash
-hermes --gateway   # Starts the FastAPI gateway server
+hermes gateway run    # FastAPI gateway on :8642
+hermes dashboard      # dashboard plugin on :9119 (sessions/skills/jobs/config)
 ```
 
-The Docker setup uses `hermes --gateway` automatically — no action needed if using `docker compose up`.
+The Docker setup runs both automatically — no action needed if using `docker compose up`.
 
 ---
 
 ## 🗺️ Roadmap
 
-| Feature                       | Status            |
-| ----------------------------- | ----------------- |
-| Chat + SSE Streaming          | ✅ Shipped        |
-| Files + Terminal              | ✅ Shipped        |
-| Memory Browser                | ✅ Shipped        |
-| Skills Browser                | ✅ Shipped        |
-| Mobile PWA + Tailscale        | ✅ Shipped        |
-| 8-Theme System                | ✅ Shipped        |
-| Native Desktop App (Electron) | 🔨 In Development |
-| Model Switching & Config      | 🔨 In Development |
-| Chat Abort / Cancel           | 🔨 In Development |
-| Cloud / Hosted Version        | 🔜 Coming Soon    |
-| Team Collaboration            | 🔜 Coming Soon    |
+### Shipped ✅
+
+| Feature | What it does |
+|---|---|
+| Chat + SSE streaming | Live agent output with tool call rendering |
+| Files + Terminal | Full workspace file browser + cross-platform PTY |
+| Memory + Skills browsers | Edit memory, browse 2,000+ skills with marketplace |
+| Dashboard | Sessions, model mix, cost ledger, attention card |
+| Operations | Multi-agent management with preset personas |
+| Agent View | Live agent panel in chat |
+| Swarm Mode | Persistent tmux-backed worker pool with role dispatch |
+| MCP page | Full catalog + marketplace + sources |
+| Mobile PWA + Tailscale | Install as native-feeling app on any device |
+| Themes | Hermes / Nous / Bronze / Slate / Mono (light + dark) |
+| Capability gates | Graceful 'upstream not ready' placeholders |
+| Multi-provider | Anthropic, OpenAI, OpenRouter, Google, Ollama, LM Studio, vLLM, Atomic Chat |
+
+### In progress 🔨
+
+| Feature | Status |
+|---|---|
+| Conductor missions | Workspace UI is shipped; awaiting upstream dashboard plugin (see [#262](https://github.com/outsourc-e/hermes-workspace/issues/262)) |
+| Native Desktop App (Electron) | Spec'd; PWA install path works today |
+
+### Coming 🔜
+
+| Feature | Status |
+|---|---|
+| Cloud / Hosted version | Pending infra |
+| Team collaboration | Pending cloud + multi-tenant work |
 
 ---
 

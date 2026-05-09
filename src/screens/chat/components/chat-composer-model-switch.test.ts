@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  getZeroForkModelInfoFlags,
   MODEL_SWITCH_BLOCKED_TOAST,
+  getZeroForkModelInfoFlags,
   shouldBlockZeroForkModelSwitch,
 } from './chat-composer-model-switch'
 
@@ -47,7 +47,7 @@ describe('zero-fork model switch guard', () => {
 
   it('keeps the toast copy stable', () => {
     expect(MODEL_SWITCH_BLOCKED_TOAST).toBe(
-      'Model switching requires the enhanced runtime. Set a default via `hermes config set model <id>` — the displayed model reflects your config.',
+      'Model switching requires the enhanced runtime. Set a default via `claude config set model <id>` — the displayed model reflects your config.',
     )
   })
 })

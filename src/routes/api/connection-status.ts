@@ -1,20 +1,24 @@
 /**
  * Connection status endpoint — returns a summary of portable chat readiness
- * plus whether Hermes gateway enhancements are available.
+ * plus whether Hermes Agent gateway enhancements are available.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { createFileRoute } from '@tanstack/react-router'
+import { json } from '@tanstack/react-start'
 import YAML from 'yaml'
 import {
-  HERMES_API,
+  CLAUDE_API,
   ensureGatewayProbed,
   getChatMode,
 } from '../../server/gateway-capabilities'
 import { isAuthenticated } from '../../server/auth-middleware'
 
-const CONFIG_PATH = path.join(os.homedir(), '.hermes', 'config.yaml')
+const CONFIG_PATH = path.join(
+  process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes'),
+  'config.yaml',
+)
 
 function readActiveModel(): string {
   try {
@@ -40,17 +44,21 @@ type ConnectionStatus = {
   chatReady: boolean
   modelConfigured: boolean
   activeModel: string
-  chatMode: 'enhanced-hermes' | 'portable' | 'disconnected'
+  chatMode: 'enhanced-claude' | 'portable' | 'disconnected'
   capabilities: Record<string, boolean>
-  hermesUrl: string
+  claudeUrl: string
 }
 
 export const Route = createFileRoute('/api/connection-status')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const authResult = isAuthenticated(request)
-        if (authResult !== true) return authResult as unknown as Response
+        // isAuthenticated() returns boolean. The previous "return authResult as
+        // unknown as Response" cast silenced TypeScript but threw at runtime
+        // because the framework received `false`, not a Response. See #261, #263.
+        if (!isAuthenticated(request)) {
+          return json({ error: 'Unauthorized' }, { status: 401 })
+        }
 
         const caps = await ensureGatewayProbed()
         const activeModel = readActiveModel()
@@ -76,11 +84,11 @@ export const Route = createFileRoute('/api/connection-status')({
           label = 'Enhanced'
           detail = modelConfigured
             ? caps.dashboard.available
-              ? 'Core chat works and the Hermes dashboard APIs are available.'
-              : 'Core chat works and Hermes gateway APIs are available.'
+              ? 'Core chat works and the Hermes Agent dashboard APIs are available.'
+              : 'Core chat works and Hermes Agent gateway APIs are available.'
             : caps.dashboard.available
-              ? 'Hermes dashboard APIs are available. Choose a model to start chatting.'
-              : 'Hermes gateway APIs are available. Choose a model to start chatting.'
+              ? 'Hermes Agent dashboard APIs are available. Choose a model to start chatting.'
+              : 'Hermes Agent gateway APIs are available. Choose a model to start chatting.'
         } else if (chatReady && modelConfigured) {
           status = 'connected'
           label = 'Connected'
@@ -95,7 +103,7 @@ export const Route = createFileRoute('/api/connection-status')({
               'Backend connected. Choose a provider and model to test chat.'
           } else {
             detail =
-              'Core chat works. Enhanced Hermes gateway APIs are optional and unlock automatically when available.'
+              'Core chat works. Enhanced Hermes Agent gateway APIs are optional and unlock automatically when available.'
           }
         }
 
@@ -118,9 +126,13 @@ export const Route = createFileRoute('/api/connection-status')({
             memory: caps.memory,
             config: caps.config,
             jobs: caps.jobs,
+            mcp: caps.mcp,
+            conductor: caps.conductor,
+            kanban: caps.kanban,
+            enhancedChat: caps.enhancedChat,
             dashboard: caps.dashboard.available,
           },
-          hermesUrl: HERMES_API,
+          claudeUrl: CLAUDE_API,
         }
 
         return Response.json(body)

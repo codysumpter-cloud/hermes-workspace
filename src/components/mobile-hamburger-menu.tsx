@@ -2,17 +2,21 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   BrainIcon,
+  Building01Icon,
   Cancel01Icon,
+  Castle02Icon,
   Chat01Icon,
   Clock01Icon,
   CommandLineIcon,
   DashboardSquare01Icon,
   File01Icon,
+  McpServerIcon,
   Menu01Icon,
   PuzzleIcon,
   Rocket01Icon,
   Settings01Icon,
   UserGroupIcon,
+  UserMultipleIcon,
 } from '@hugeicons/core-free-icons'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -23,7 +27,7 @@ import {
   useChatSettingsStore,
 } from '@/hooks/use-chat-settings'
 
-const NAV_ITEMS = [
+export const MOBILE_HAMBURGER_NAV_ITEMS = [
   {
     id: 'chat',
     label: 'Chat',
@@ -37,6 +41,13 @@ const NAV_ITEMS = [
     icon: DashboardSquare01Icon,
     to: '/dashboard',
     match: (p: string) => p.startsWith('/dashboard'),
+  },
+  {
+    id: 'playground',
+    label: 'HermesWorld',
+    icon: Castle02Icon,
+    to: '/playground',
+    match: (p: string) => p.startsWith('/playground'),
   },
   {
     id: 'terminal',
@@ -62,10 +73,18 @@ const NAV_ITEMS = [
   {
     id: 'operations',
     label: 'Operations',
-    icon: UserGroupIcon,
+    icon: UserMultipleIcon,
     to: '/operations',
     match: (p: string) => p.startsWith('/operations'),
   },
+  {
+    id: 'swarm',
+    label: 'Swarm',
+    icon: UserGroupIcon,
+    to: '/swarm',
+    match: (p: string) => p === '/swarm' || p.startsWith('/swarm2'),
+  },
+
   {
     id: 'memory',
     label: 'Memory',
@@ -79,6 +98,13 @@ const NAV_ITEMS = [
     icon: PuzzleIcon,
     to: '/skills',
     match: (p: string) => p.startsWith('/skills'),
+  },
+  {
+    id: 'mcp',
+    label: 'MCP',
+    icon: McpServerIcon,
+    to: '/mcp',
+    match: (p: string) => p.startsWith('/mcp'),
   },
   {
     id: 'profiles',
@@ -188,8 +214,8 @@ export function MobileHamburgerMenu() {
         >
           <div className="flex items-center gap-2.5">
             <img
-              src="/hermes-avatar.webp"
-              alt="Hermes"
+              src="/claude-avatar.webp"
+              alt="Hermes Agent"
               className="size-8 rounded-xl shrink-0"
             />
             <div className="flex flex-col leading-tight">
@@ -197,7 +223,7 @@ export function MobileHamburgerMenu() {
                 className="font-bold text-[15px] tracking-tight"
                 style={{ color: 'var(--color-ink, #111)' }}
               >
-                Hermes
+                Hermes Agent
               </span>
               <span
                 className="text-[11px]"
@@ -220,7 +246,7 @@ export function MobileHamburgerMenu() {
 
         {/* Nav items */}
         <nav className="flex flex-col gap-1 px-3 pt-4 flex-1">
-          {NAV_ITEMS.map((item) => {
+          {MOBILE_HAMBURGER_NAV_ITEMS.map((item) => {
             const isActive = item.match(pathname)
             return (
               <button
@@ -236,9 +262,13 @@ export function MobileHamburgerMenu() {
                     ? {
                         background:
                           'var(--theme-accent-subtle, color-mix(in srgb, var(--theme-accent, #6366f1) 12%, transparent))',
-                        color: 'var(--theme-accent, var(--color-accent, #6366f1))',
+                        color:
+                          'var(--theme-accent, var(--color-accent, #6366f1))',
                       }
-                    : { color: 'var(--theme-muted, var(--color-ink-muted, #555))' }
+                    : {
+                        color:
+                          'var(--theme-muted, var(--color-ink-muted, #555))',
+                      }
                 }
               >
                 <HugeiconsIcon
@@ -275,7 +305,9 @@ export function MobileHamburgerMenu() {
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{ color: 'var(--theme-accent, var(--color-accent, #6366f1))' }}
+                style={{
+                  color: 'var(--theme-accent, var(--color-accent, #6366f1))',
+                }}
               >
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />

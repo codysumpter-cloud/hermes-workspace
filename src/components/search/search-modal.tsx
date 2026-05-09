@@ -35,13 +35,6 @@ const SCOPE_TABS: Array<{ value: SearchScope; label: string }> = [
   { value: 'actions', label: '⚡ Actions' },
 ]
 
-const RECENT_SEARCHES = [
-  'streaming fixes',
-  'session timeout',
-  'agent memory',
-  'usage alerts',
-]
-
 const RESULT_LIMITS = {
   chats: 24,
   files: 40,
@@ -66,11 +59,13 @@ export function SearchModal() {
   const isOpen = useSearchModal((state) => state.isOpen)
   const query = useSearchModal((state) => state.query)
   const scope = useSearchModal((state) => state.scope)
+  const recentSearches = useSearchModal((state) => state.recentSearches)
   const closeModal = useSearchModal((state) => state.closeModal)
   const toggleModal = useSearchModal((state) => state.toggleModal)
   const setQuery = useSearchModal((state) => state.setQuery)
   const clearQuery = useSearchModal((state) => state.clearQuery)
   const setScope = useSearchModal((state) => state.setScope)
+  const recordRecentSearch = useSearchModal((state) => state.recordRecentSearch)
 
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -92,7 +87,8 @@ export function SearchModal() {
         description: 'Start a new conversation session',
         onSelect: () => {
           closeModal()
-          navigate({ to: '/chat' })
+          // /chat redirects to last session — force the new sentinel. See #300.
+          navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
         },
       },
       {
@@ -103,6 +99,16 @@ export function SearchModal() {
         onSelect: () => {
           closeModal()
           navigate({ to: '/skills' })
+        },
+      },
+      {
+        id: 'qa-mcp',
+        emoji: '🔌',
+        label: 'MCP',
+        description: 'Manage MCP servers and presets',
+        onSelect: () => {
+          closeModal()
+          navigate({ to: '/mcp' })
         },
       },
       {
@@ -132,7 +138,7 @@ export function SearchModal() {
         description: 'Open the settings workspace',
         onSelect: () => {
           closeModal()
-          navigate({ to: '/settings' })
+          navigate({ to: '/settings', search: {} })
         },
       },
       {
@@ -174,11 +180,12 @@ export function SearchModal() {
     const normalized = deferredQuery.trim()
     if (!normalized) return []
 
-    // Real sessions data
+    // Real sessions data — search across friendlyId, key, derived title,
+    // and preview so user queries match chat content (#291).
     const chats = filterResults(
       sessions,
       normalized,
-      ['friendlyId', 'key', 'title'],
+      ['friendlyId', 'key', 'title', 'preview'],
       RESULT_LIMITS.chats,
     ).map<SearchResultItemData>((entry) => ({
       id: entry.id,
@@ -348,6 +355,8 @@ export function SearchModal() {
       if (event.key === 'Enter') {
         if (resultItems.length === 0) return
         event.preventDefault()
+        const finalQuery = debouncedQuery.trim() || query.trim()
+        if (finalQuery) recordRecentSearch(finalQuery)
         resultItems[selectedIndex]?.onSelect()
         closeModal()
         return
@@ -359,6 +368,8 @@ export function SearchModal() {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
         if (!target) return
         event.preventDefault()
+        const finalQuery = debouncedQuery.trim() || query.trim()
+        if (finalQuery) recordRecentSearch(finalQuery)
         setSelectedIndex(index)
         target.onSelect()
         closeModal()
@@ -439,7 +450,7 @@ export function SearchModal() {
             <div className="max-h-[360px] overflow-y-auto border-t border-primary-200 p-3">
               {query.trim().length === 0 ? (
                 <QuickActions
-                  recentSearches={RECENT_SEARCHES}
+                  recentSearches={recentSearches}
                   actions={quickActions}
                   onSelectRecent={(value) => {
                     setQuery(value)
@@ -455,6 +466,8 @@ export function SearchModal() {
                     const item = resultItems[index]
                     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
                     if (!item) return
+                    const finalQuery = debouncedQuery.trim() || query.trim()
+                    if (finalQuery) recordRecentSearch(finalQuery)
                     item.onSelect()
                     closeModal()
                   }}

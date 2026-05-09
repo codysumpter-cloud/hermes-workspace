@@ -424,7 +424,7 @@ export function OfficeView({
   onNewMission,
   selectedOutputAgentId,
   activeTemplateName: _activeTemplateName,
-  companyName = 'Mission Control',
+  companyName = 'Swarm',
   agentTasks = {},
   remoteSessions = [],
   onViewRemoteOutput,
@@ -471,7 +471,10 @@ export function OfficeView({
   }, [layoutPickerOpen])
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTick((t) => t + 1), 200)
+    // 500ms interval (was 200ms) — the office animations are subtle (drift, bob, walk),
+    // and 200ms x 12 agents was burning frames. 500ms is still fluid visually and
+    // halves the React reconcile + SVG repaint pressure.
+    const timer = window.setInterval(() => setTick((t) => t + 1), 500)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -543,7 +546,12 @@ export function OfficeView({
   })
 
   return (
-    <div className={cn('flex flex-col bg-gradient-to-b from-slate-50 to-neutral-100 dark:from-slate-900 dark:to-slate-800', compact ? 'h-full' : 'min-h-[480px]')}>
+    <div className={cn(
+      'flex flex-col',
+      compact
+        ? 'h-full bg-gradient-to-b from-slate-100 via-slate-50 to-neutral-100 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900'
+        : 'min-h-[480px] bg-gradient-to-b from-slate-50 to-neutral-100 dark:from-slate-900 dark:to-slate-800',
+    )}>
       {/* Header bar */}
       {hideHeader ? null : <div className="flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-neutral-200 bg-white/80 px-5 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-800/80">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -746,16 +754,20 @@ export function OfficeView({
           })}
         </svg>
 
-        {/* Office whiteboard */}
-        <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
-          <div className="rounded-md border border-neutral-300/90 bg-[#fdfdf8] px-4 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.15)]">
-            <span className="block whitespace-nowrap text-center text-sm font-bold tracking-wide text-neutral-800 [font-family:'Bradley_Hand','Marker_Felt','Comic_Sans_MS',cursive]">
-              {companyName}
-            </span>
+        {/* Office whiteboard — hidden in compact mode (matches hideHeader semantics) */}
+        {!compact && !hideHeader ? (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
+            <div className="rounded-md border border-neutral-300/90 bg-[#fdfdf8] px-4 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.15)]">
+              <span className="block whitespace-nowrap text-center text-sm font-bold tracking-wide text-neutral-800 [font-family:'Bradley_Hand','Marker_Felt','Comic_Sans_MS',cursive]">
+                {companyName}
+              </span>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        {/* Agent avatars (HTML overlay for interactivity) */}
+        {/* Agent avatars (HTML overlay for interactivity)
+            Position scaling: SVG uses viewBox 0 0 sceneW sceneH and scales to fit container,
+            so we express positions as percentages of the scene to match the SVG's scale. */}
         {agentRows.map((agent, index) => {
           const accent = AGENT_ACCENT_COLORS[index % AGENT_ACCENT_COLORS.length]
           const pos = agentPositions[index]
@@ -765,8 +777,10 @@ export function OfficeView({
           const isIdle = agent.status === 'idle' || agent.status === 'ready'
           const statusMeta = getAgentStatusMeta(agent.status)
           const speechLine = getSpeechLine(agent, tick + index * 7)
-          const showSpeech = Boolean(speechLine) && ((tick + index * 3) % 8 < 6)
-          const movementTransform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`
+          const showSpeech = !compact && Boolean(speechLine) && agentRows.length <= 8 && ((tick + index * 3) % 8 < 6)
+          const xPct = (pos.x / sceneW) * 100
+          const yPct = (pos.y / sceneH) * 100
+          const movementTransform = `translate(-50%, -50%)`
 
           return (
             <button
@@ -778,10 +792,10 @@ export function OfficeView({
                 isSelected && 'ring-2 ring-accent-300/80',
               )}
               style={{
-                left: 0,
-                top: 0,
+                left: `${xPct}%`,
+                top: `${yPct}%`,
                 transform: movementTransform,
-                transition: 'transform 0.8s ease-in-out',
+                transition: 'left 0.8s ease-in-out, top 0.8s ease-in-out',
               }}
               title={`${agent.name} · ${statusMeta.label}`}
             >
@@ -835,7 +849,7 @@ export function OfficeView({
                   <span className="size-1 animate-pulse rounded-full bg-emerald-500 [animation-delay:240ms]" />
                   <span className="ml-0.5">Working</span>
                 </span>
-              ) : isIdle && !pos.atDesk ? (
+              ) : isIdle && !pos.atDesk && !compact ? (
                 <span className="mt-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
                   On break
                 </span>
@@ -843,7 +857,9 @@ export function OfficeView({
 
               {/* Name + model */}
               <span className="mt-1 max-w-full truncate text-[10px] font-semibold text-neutral-800 dark:text-white">{agent.name}</span>
-              <span className="max-w-full truncate text-xs text-neutral-500 dark:text-slate-400">{getOfficeModelLabel(agent.modelId)}</span>
+              {!compact ? (
+                <span className="max-w-full truncate text-xs text-neutral-500 dark:text-slate-400">{getOfficeModelLabel(agent.modelId)}</span>
+              ) : null}
             </button>
           )
         })}

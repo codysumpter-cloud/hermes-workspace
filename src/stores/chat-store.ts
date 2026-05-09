@@ -133,10 +133,7 @@ type ChatState = {
 
   /** Sessions currently waiting for a response — survives component unmount */
   waitingSessionKeys: Set<string>
-  waitingSessionMeta: Record<
-    string,
-    { since: number; runId: string | null }
-  >
+  waitingSessionMeta: Record<string, { since: number; runId: string | null }>
   /** Mark a session as waiting for a response */
   setSessionWaiting: (sessionKey: string, runId?: string | null) => void
   /** Clear waiting state for a session */
@@ -161,7 +158,7 @@ function persistStreamingState(
   if (_streamingPersistTimer) clearTimeout(_streamingPersistTimer)
   _streamingPersistTimer = setTimeout(() => {
     sessionStorage.setItem(
-      `hermes_streaming_${sessionKey}`,
+      `claude_streaming_${sessionKey}`,
       JSON.stringify({ ...state, _savedAt: Date.now() }),
     )
   }, 500)
@@ -172,7 +169,7 @@ export function restoreStreamingState(
 ): StreamingState | null {
   if (typeof sessionStorage === 'undefined') return null
 
-  const storageKey = `hermes_streaming_${sessionKey}`
+  const storageKey = `claude_streaming_${sessionKey}`
   const raw = sessionStorage.getItem(storageKey)
   if (!raw) return null
 
@@ -196,8 +193,56 @@ export function restoreStreamingState(
   }
 }
 
+const RECOVERY_MSG_PREFIX = 'claude_recovery_msg_'
+const RECOVERY_MSG_TTL_MS = 5 * 60 * 1000
+
+export function persistRecoveryMessage(
+  sessionKey: string,
+  message: ChatMessage,
+): void {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(
+      `${RECOVERY_MSG_PREFIX}${sessionKey}`,
+      JSON.stringify({ message, storedAt: Date.now() }),
+    )
+  } catch {
+    // Ignore storage write failures (quota, private mode, etc.).
+  }
+}
+
+export function readRecoveryMessage(sessionKey: string): ChatMessage | null {
+  if (typeof sessionStorage === 'undefined') return null
+  const key = `${RECOVERY_MSG_PREFIX}${sessionKey}`
+  const raw = sessionStorage.getItem(key)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as {
+      message?: ChatMessage
+      storedAt?: number
+    }
+    if (!parsed.message) return null
+    if (
+      typeof parsed.storedAt !== 'number' ||
+      Date.now() - parsed.storedAt > RECOVERY_MSG_TTL_MS
+    ) {
+      sessionStorage.removeItem(key)
+      return null
+    }
+    return parsed.message
+  } catch {
+    sessionStorage.removeItem(key)
+    return null
+  }
+}
+
+export function clearRecoveryMessage(sessionKey: string): void {
+  if (typeof sessionStorage === 'undefined') return
+  sessionStorage.removeItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+}
+
 const WAITING_TTL_MS = 120_000
-const WAITING_STORAGE_PREFIX = 'hermes_waiting_'
+const WAITING_STORAGE_PREFIX = 'claude_waiting_'
 
 function persistWaitingState(
   sessionKey: string,
@@ -424,7 +469,8 @@ function getMessageHistoryIndex(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
-  const value = (msg as Record<string, unknown>).__historyIndex
+  const raw = msg as Record<string, unknown>
+  const value = raw.__historyIndex ?? raw.historyIndex
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
@@ -468,10 +514,6 @@ function compareMessagesByTime(left: ChatMessage, right: ChatMessage): number {
     getMessageEventTime(right) ?? getMessageReceiveTime(right) ?? 0
   if (leftTime !== rightTime) return leftTime - rightTime
 
-  const leftRank = getMessageChronologyRank(left)
-  const rightRank = getMessageChronologyRank(right)
-  if (leftRank !== rightRank) return leftRank - rightRank
-
   const leftHistoryIndex = getMessageHistoryIndex(left)
   const rightHistoryIndex = getMessageHistoryIndex(right)
   if (
@@ -481,6 +523,10 @@ function compareMessagesByTime(left: ChatMessage, right: ChatMessage): number {
   ) {
     return leftHistoryIndex - rightHistoryIndex
   }
+
+  const leftRank = getMessageChronologyRank(left)
+  const rightRank = getMessageChronologyRank(right)
+  if (leftRank !== rightRank) return leftRank - rightRank
 
   const leftRealtimeSequence = getMessageRealtimeSequence(left)
   const rightRealtimeSequence = getMessageRealtimeSequence(right)
@@ -984,7 +1030,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             timestamp: getMessageEventTime(cleanedMessage) ?? now,
             __receiveTime: now,
             __realtimeSequence: realtimeMessageSequence++,
-            __streamingStatus: (event.state === 'interrupted' ? 'interrupted' : 'complete') as any,
+            __streamingStatus: (event.state === 'interrupted'
+              ? 'interrupted'
+              : 'complete') as any,
             ...(streamToolCallsToEmbed
               ? { __streamToolCalls: streamToolCallsToEmbed }
               : {}),
@@ -1078,6 +1126,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
               set({ realtimeMessages: messages })
             }
           }
+
+          // Persist the final assistant message to sessionStorage so it survives
+          // dev refresh / tab navigation until backend history catches up.
+          persistRecoveryMessage(sessionKey, completeMessage)
         }
 
         // Clear streaming state immediately — tool calls are preserved via
@@ -1088,7 +1140,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingMap.delete(sessionKey)
         set({ streamingState: streamingMap, lastEventAt: now })
         if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.removeItem(`hermes_streaming_${sessionKey}`)
+          sessionStorage.removeItem(`claude_streaming_${sessionKey}`)
         }
         break
       }

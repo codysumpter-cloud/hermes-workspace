@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Project Workspace — one-liner installer
+# Hermes Workspace — one-liner installer
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/outsourc-e/hermes-workspace/main/install.sh | bash
@@ -8,7 +8,7 @@
 #   1. Verifies Node 22+, git, pnpm
 #   2. Installs hermes-agent via Nous's official upstream installer
 #   3. Clones hermes-workspace
-#   4. Sets up .env, enables the Hermes HTTP API, installs deps,
+#   4. Sets up .env, enables the Hermes API server, installs deps,
 #      and links bundled skills
 #
 # Re-runnable. Will skip anything already installed.
@@ -34,7 +34,7 @@ banner() {
   cat <<'EOF'
 
    ╭────────────────────────────────────────────╮
-   │  PROJECT WORKSPACE — zero-fork installer   │
+   │  HERMES WORKSPACE — zero-fork installer   │
    │  outsourc-e/hermes-workspace               │
    ╰────────────────────────────────────────────╯
 
@@ -165,7 +165,7 @@ fi
 ensure_env_key "$INSTALL_DIR/.env" "HERMES_API_URL" "http://127.0.0.1:${GATEWAY_PORT}"
 green "  .env ready ✓"
 
-cyan "→ Enabling Hermes HTTP API…"
+cyan "→ Enabling Hermes API server…"
 HERMES_ENV_PATH="$(hermes config env-path 2>/dev/null || true)"
 if [[ -z "$HERMES_ENV_PATH" ]]; then
   HERMES_ENV_PATH="$HOME/.hermes/.env"
@@ -223,7 +223,7 @@ cat <<EOF
 
 Next steps (two terminals):
 
-  1) Start the Hermes gateway:
+  1) Start the Hermes Agent gateway:
        hermes gateway run
      (first run may prompt for hermes setup)
 

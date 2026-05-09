@@ -30,14 +30,14 @@ import { cn } from '@/lib/utils'
 // FIX: replaced direct server module imports with workspace API calls to avoid
 // bundling Node.js-only modules (node:sqlite, node:fs) into the client bundle.
 async function getConfig(): Promise<Record<string, unknown>> {
-  const res = await fetch('/api/hermes-config')
+  const res = await fetch('/api/claude-config')
   if (!res.ok) throw new Error(`Failed to load config: HTTP ${res.status}`)
   const data = await res.json() as { config?: Record<string, unknown> }
   return data.config ?? {}
 }
 
 async function patchConfig(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch('/api/hermes-config', {
+  const res = await fetch('/api/claude-config', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ config: patch }),
@@ -93,11 +93,11 @@ type ProvidersScreenProps = {
   embedded?: boolean
 }
 
-type HermesConfig = Record<string, unknown>
+type ClaudeConfig = Record<string, unknown>
 
 type ConfigQueryResponse = {
   ok?: boolean
-  payload?: HermesConfig
+  payload?: ClaudeConfig
   error?: string
 }
 
@@ -135,9 +135,9 @@ type SaveSettingPayload = {
 }
 
 // Models are fetched through the workspace API proxy to support Docker and
-// reverse-proxy deployments where the browser cannot reach Hermes directly.
+// reverse-proxy deployments where the browser cannot reach Hermes Agent directly.
 
-type HermesCatalogEntry =
+type ClaudeCatalogEntry =
   | string
   | {
       id: string
@@ -146,9 +146,9 @@ type HermesCatalogEntry =
       [key: string]: unknown
     }
 
-function isHermesCatalogEntry(
-  entry: HermesCatalogEntry | null,
-): entry is HermesCatalogEntry {
+function isClaudeCatalogEntry(
+  entry: ClaudeCatalogEntry | null,
+): entry is ClaudeCatalogEntry {
   return entry !== null
 }
 
@@ -214,7 +214,7 @@ async function fetchModels(): Promise<{
                 : id,
       }
     })
-    .filter(isHermesCatalogEntry)
+    .filter(isClaudeCatalogEntry)
 
   const configuredProviders = Array.from(
     new Set(
@@ -454,7 +454,7 @@ function defaultFormatValue(
 
 function getDraftValue(
   setting: SettingDefinition,
-  config: HermesConfig | undefined,
+  config: ClaudeConfig | undefined,
   draftValues: Record<string, string>,
 ): string {
   if (draftValues[setting.id] !== undefined) return draftValues[setting.id]
@@ -546,7 +546,7 @@ function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
 
 function SettingCard(props: {
   setting: SettingDefinition
-  config: HermesConfig | undefined
+  config: ClaudeConfig | undefined
   draftValues: Record<string, string>
   setDraftValues: React.Dispatch<React.SetStateAction<Record<string, string>>>
   saveSetting: (payload: SaveSettingPayload) => Promise<void>
@@ -828,7 +828,7 @@ function parseModelProvider(value: unknown): ModelProviderOption {
 }
 
 function readPrimaryModelConfig(
-  config: HermesConfig | undefined,
+  config: ClaudeConfig | undefined,
 ): ModelConfigDraft {
   const modelBlock = readRecord(config?.model)
   const flatModel = typeof config?.model === 'string' ? config.model : ''
@@ -841,7 +841,7 @@ function readPrimaryModelConfig(
 }
 
 function readFallbackModelConfig(
-  config: HermesConfig | undefined,
+  config: ClaudeConfig | undefined,
 ): ModelConfigDraft {
   const fallbackBlock = readRecord(config?.fallback_model)
 
@@ -853,7 +853,7 @@ function readFallbackModelConfig(
 }
 
 function readPerformanceConfig(
-  config: HermesConfig | undefined,
+  config: ClaudeConfig | undefined,
 ): PerformanceDraft {
   const performanceBlock = readRecord(config?.performance)
   const staleTimeout =
@@ -1024,7 +1024,7 @@ function ActiveModelCard({
   const [showFallback, setShowFallback] = useState(false)
 
   const configQuery = useQuery({
-    queryKey: ['hermes', 'active-config'],
+    queryKey: ['claude', 'active-config'],
     queryFn: getConfig,
   })
 
@@ -1070,10 +1070,10 @@ function ActiveModelCard({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ['hermes', 'active-config'],
+          queryKey: ['claude', 'active-config'],
         }),
-        queryClient.invalidateQueries({ queryKey: ['hermes', 'config'] }),
-        queryClient.invalidateQueries({ queryKey: ['hermes-config'] }),
+        queryClient.invalidateQueries({ queryKey: ['claude', 'config'] }),
+        queryClient.invalidateQueries({ queryKey: ['claude-config'] }),
       ])
       toast('Model config saved — takes effect on next message', {
         type: 'success',
@@ -1103,8 +1103,7 @@ function ActiveModelCard({
           </h3>
           <p className="text-sm text-primary-600">
             Update the primary model, optional fallback, and stream timeout
-            settings saved in{' '}
-            <code className="font-mono">~/.hermes/config.yaml</code>.
+            settings saved in the active profile configuration.
           </p>
         </div>
         <Button
@@ -1128,7 +1127,7 @@ function ActiveModelCard({
         <div className="mt-5 space-y-4">
           <ModelConfigSection
             title="Primary Model"
-            description="Default provider, model, and base URL used for new Hermes requests."
+            description="Default provider, model, and base URL used for new Hermes Agent requests."
             value={primaryConfig}
             onChange={setPrimaryConfig}
             modelOptions={modelOptions}
@@ -1143,7 +1142,7 @@ function ActiveModelCard({
                   Fallback Model
                 </h3>
                 <p className="text-sm text-primary-600">
-                  Optional secondary model Hermes can use if the primary path
+                  Optional secondary model Hermes Agent can use if the primary path
                   fails.
                 </p>
               </div>
@@ -1227,7 +1226,7 @@ function ActiveModelCard({
 
             <p className="mt-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card2)] px-3 py-2 text-sm text-primary-600">
               Slow local runners such as Ollama and `llama-server` often need
-              more headroom before Hermes decides a stream has stalled.
+              more headroom before Hermes Agent decides a stream has stalled.
             </p>
           </section>
         </div>
@@ -1298,14 +1297,14 @@ function ProviderManagementSection(props: {
 
         {modelsQuery.isPending ? (
           <p className="rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm text-primary-600">
-            Loading providers from Hermes...
+            Loading providers from Hermes Agent...
           </p>
         ) : null}
 
         {modelsQuery.error ? (
           <div className="rounded-xl border border-primary-200 bg-white px-4 py-3">
             <p className="mb-2 text-sm text-primary-700">
-              Unable to load providers right now. Check your Hermes connection.
+              Unable to load providers right now. Check your Hermes Agent connection.
             </p>
             <Button
               variant="outline"
@@ -1422,7 +1421,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const modelsQuery = useQuery({
-    queryKey: ['hermes', 'providers', 'models'],
+    queryKey: ['claude', 'providers', 'models'],
     queryFn: fetchModels,
     refetchInterval: 60_000,
     retry: false,
@@ -1430,7 +1429,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
   })
 
   const configQuery = useQuery({
-    queryKey: ['hermes', 'config'],
+    queryKey: ['claude', 'config'],
     queryFn: async () => {
       const response = await fetch('/api/config-get')
       const payload = (await response
@@ -1460,7 +1459,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
       }
     },
     onSuccess: async (_, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ['hermes', 'config'] })
+      await queryClient.invalidateQueries({ queryKey: ['claude', 'config'] })
       toast(`${variables.label} saved`, { type: 'success' })
     },
     onError: (error) => {
@@ -1541,7 +1540,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
 
     setDeletingId(provider.id)
     try {
-      const res = await fetch('/api/hermes-config', {
+      const res = await fetch('/api/claude-config', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -1556,7 +1555,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
         })
       } else {
         await queryClient.invalidateQueries({
-          queryKey: ['hermes', 'providers', 'models'],
+          queryKey: ['claude', 'providers', 'models'],
         })
         toast(`Provider "${provider.name}" removed`, { type: 'success' })
       }
@@ -1614,7 +1613,7 @@ export function ProvidersScreen({ embedded = false }: ProvidersScreenProps) {
                 Settings
               </h1>
               <p className="text-sm text-primary-600">
-                Configure providers plus Hermes agent defaults in one place.
+                Configure providers plus Hermes Agent defaults in one place.
               </p>
             </div>
 

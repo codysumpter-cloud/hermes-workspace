@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AuthStatus } from '@/lib/hermes-auth'
+import type { AuthStatus } from '@/lib/claude-auth'
 import { writeTextToClipboard } from '@/lib/clipboard'
-import { fetchHermesAuthStatus } from '@/lib/hermes-auth'
+import { fetchClaudeAuthStatus } from '@/lib/claude-auth'
 
 const POLL_INTERVAL_MS = 2_000
 const FAILURE_REVEAL_MS = 5_000
@@ -22,9 +22,6 @@ function detectPlatform(): Platform {
 function getSetupSteps(
   platform: Platform,
 ): Array<{ title: string; command: string; note?: string }> {
-  const pip = platform === 'windows' ? 'pip' : 'pip3'
-  const python = platform === 'windows' ? 'python' : 'python3'
-
   return [
     {
       title: 'Use any OpenAI-compatible backend',
@@ -33,13 +30,14 @@ function getSetupSteps(
     },
     {
       title: 'Optional: install Hermes Agent locally',
-      command: `${pip} install hermes-agent`,
+      command:
+        'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash',
       note: 'Vanilla hermes-agent unlocks sessions, skills, memory, jobs, and config automatically — no fork required',
     },
     {
-      title: 'Set up Hermes',
+      title: 'Set up your agent',
       command: 'hermes setup',
-      note: 'Pick your providers once; Hermes stores them under ~/.hermes',
+      note: 'Pick your providers once; Hermes Agent stores them under ~/.hermes',
     },
     {
       title: 'Start the gateway',
@@ -95,14 +93,14 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
       }
     }, FAILURE_REVEAL_MS)
 
-    // After a short grace period, fire /api/start-hermes once silently.
+    // After a short grace period, fire /api/start-claude once silently.
     // If hermes-agent is installed and just not running, this brings it back
     // up without making the user click anything. The polling loop will see it.
     const fireSilentAutoStart = async () => {
       if (autoStartFired || isDone.current) return
       autoStartFired = true
       try {
-        const res = await fetch('/api/start-hermes', {
+        const res = await fetch('/api/start-claude', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
@@ -115,7 +113,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
           setServerLog([
             String(
               data.message ||
-                'Auto-started Hermes gateway — reconnecting…',
+                'Auto-started Hermes Agent gateway — reconnecting…',
             ),
           ])
         }
@@ -129,7 +127,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
 
     const tryConnect = async () => {
       try {
-        const status = await fetchHermesAuthStatus()
+        const status = await fetchClaudeAuthStatus()
         if (isDone.current) return
         isDone.current = true
         clearTimeout(failureTimer)
@@ -173,7 +171,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
     setServerError(null)
     setServerLog(['Looking for hermes-agent...'])
     try {
-      const res = await fetch('/api/start-hermes', {
+      const res = await fetch('/api/start-claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -222,8 +220,8 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
     >
       <div className="flex w-full max-w-lg flex-col items-center text-center">
         <img
-          src="/hermes-avatar.webp"
-          alt="Hermes"
+          src="/claude-avatar.webp"
+          alt="Hermes Agent"
           className="mb-5 h-20 w-20 rounded-2xl object-cover shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
         />
 
@@ -257,7 +255,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
               Welcome! Let&apos;s connect your backend
             </p>
             <p className="mt-2 text-sm leading-6 text-white/60">
-              Hermes Workspace works with any OpenAI-compatible backend. Hermes
+              Hermes Workspace works with any OpenAI-compatible backend. Hermes Agent
               gateway APIs unlock enhanced features automatically when they are
               available.
             </p>
@@ -281,7 +279,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
                     Detecting...
                   </span>
                 ) : (
-                  'Auto-Start Hermes Gateway'
+                  'Auto-Start Hermes Agent Gateway'
                 )}
               </button>
 

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.6
-# Project Workspace — production Docker image
+# Hermes Workspace — production Docker image
 # Publishes to ghcr.io/outsourc-e/hermes-workspace
 #
 # Build locally:
@@ -15,8 +15,7 @@ RUN corepack enable && apt-get update && apt-get install -y --no-install-recomme
 WORKDIR /app
 
 # Install deps (cache-friendly: copy only manifests first)
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
-COPY workspace-daemon/package.json workspace-daemon/
+COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # Copy sources and build
@@ -25,17 +24,25 @@ RUN pnpm build
 
 # ─── runtime stage ────────────────────────────────────────────────────────
 FROM node:22-slim
+# python3 is required by scripts/pty-helper.py (terminal feature). Originally
+# added in PR #185 for issue #161; regressed by the 2026-05-01 rename commit
+# efcb7d14 and re-added here per issue #259.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl tini \
+      ca-certificates curl tini python3 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r workspace && useradd -r -g workspace -u 10010 workspace
 
 WORKDIR /app
 
-# Copy build artefacts + runtime deps
+# Copy build artefacts + runtime deps.
+# server-entry.js is the Node HTTP server that wraps the TanStack Start fetch
+# handler exported by dist/server/server.js. Without it, `node dist/server/server.js`
+# imports the handler module, runs top-level code, and exits (code 0) because
+# nothing keeps the event loop alive — see issue #129.
 COPY --from=build --chown=workspace:workspace /app/dist ./dist
 COPY --from=build --chown=workspace:workspace /app/node_modules ./node_modules
 COPY --from=build --chown=workspace:workspace /app/package.json ./package.json
+COPY --from=build --chown=workspace:workspace /app/server-entry.js ./server-entry.js
 COPY --from=build --chown=workspace:workspace /app/skills ./skills
 
 USER workspace
@@ -49,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["node", "--max-old-space-size=2048", "dist/server/server.js"]
+CMD ["node", "--max-old-space-size=2048", "server-entry.js"]

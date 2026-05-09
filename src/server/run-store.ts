@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import path from 'node:path'
+
+import { getHermesRoot } from './claude-paths'
 
 export type PersistedRunToolCall = {
   id: string
@@ -33,7 +34,7 @@ export type PersistedRunState = {
   errorMessage?: string
 }
 
-const RUNS_ROOT = path.join(homedir(), '.hermes', 'webui-mvp', 'runs')
+const RUNS_ROOT = path.join(getHermesRoot(), 'webui-mvp', 'runs')
 
 function encodeSessionKey(sessionKey: string): string {
   return encodeURIComponent(sessionKey || 'main')

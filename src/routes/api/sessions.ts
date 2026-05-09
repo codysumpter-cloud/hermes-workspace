@@ -12,9 +12,14 @@ import {
   listSessions,
   toSessionSummary,
   updateSession,
-} from '../../server/hermes-api'
+} from '../../server/claude-api'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
-import { listLocalSessions } from '../../server/local-session-store'
+import {
+  deleteLocalSession,
+  getLocalSession,
+  listLocalSessions,
+  updateLocalSessionTitle,
+} from '../../server/local-session-store'
 
 export const Route = createFileRoute('/api/sessions')({
   server: {
@@ -46,7 +51,10 @@ export const Route = createFileRoute('/api/sessions')({
               gatewaySessions.push({
                 key: ls.id,
                 id: ls.id,
+                friendlyId: ls.id,
                 title: ls.title || 'Local Chat',
+                label: ls.title || 'Local Chat',
+                derivedTitle: ls.title || 'Local Chat',
                 startedAt: ls.createdAt,
                 updatedAt: ls.updatedAt,
                 message_count: ls.messageCount,
@@ -193,6 +201,30 @@ export const Route = createFileRoute('/api/sessions')({
             )
           }
 
+          const localSession = getLocalSession(sessionKey)
+          if (localSession) {
+            if (label) updateLocalSessionTitle(sessionKey, label)
+            return json({
+              ok: true,
+              sessionKey,
+              friendlyId: rawFriendlyId || sessionKey,
+              entry: {
+                key: sessionKey,
+                id: sessionKey,
+                title: label || sessionKey,
+                label: label || sessionKey,
+                derivedTitle: label || sessionKey,
+                startedAt: localSession.createdAt,
+                updatedAt: Date.now(),
+                message_count: localSession.messageCount,
+                model: localSession.model,
+                source: 'local',
+              },
+              updated: true,
+              source: 'local',
+            })
+          }
+
           if (capabilities.dashboard.available && !capabilities.enhancedChat) {
             return json({
               ok: true,
@@ -232,13 +264,27 @@ export const Route = createFileRoute('/api/sessions')({
         if (!isAuthenticated(request)) {
           return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
+        const url = new URL(request.url)
+        const rawSessionKey = url.searchParams.get('sessionKey') ?? ''
+        const rawFriendlyId = url.searchParams.get('friendlyId') ?? ''
+        const sessionKey = rawSessionKey.trim() || rawFriendlyId.trim()
+
+        if (!sessionKey) {
+          return json(
+            { ok: false, error: 'sessionKey required' },
+            { status: 400 },
+          )
+        }
+
+        // Local sessions live in the workspace portable store, not the
+        // gateway. Delete them locally without hitting the gateway.
+        if (getLocalSession(sessionKey)) {
+          deleteLocalSession(sessionKey)
+          return json({ ok: true, sessionKey, source: 'local' })
+        }
+
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.sessions) {
-          const url = new URL(request.url)
-          const rawSessionKey = url.searchParams.get('sessionKey') ?? ''
-          const rawFriendlyId = url.searchParams.get('friendlyId') ?? ''
-          const sessionKey = rawSessionKey.trim() || rawFriendlyId.trim()
-
           return json({
             ...createCapabilityUnavailablePayload('sessions'),
             ok: true,
@@ -247,18 +293,6 @@ export const Route = createFileRoute('/api/sessions')({
           })
         }
         try {
-          const url = new URL(request.url)
-          const rawSessionKey = url.searchParams.get('sessionKey') ?? ''
-          const rawFriendlyId = url.searchParams.get('friendlyId') ?? ''
-          const sessionKey = rawSessionKey.trim() || rawFriendlyId.trim()
-
-          if (!sessionKey) {
-            return json(
-              { ok: false, error: 'sessionKey required' },
-              { status: 400 },
-            )
-          }
-
           await deleteSession(sessionKey)
 
           return json({ ok: true, sessionKey })

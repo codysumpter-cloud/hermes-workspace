@@ -2,12 +2,15 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   BrainIcon,
+  Building01Icon,
   Chat01Icon,
   Clock01Icon,
   CommandLineIcon,
   DashboardSquare01Icon,
   File01Icon,
+  McpServerIcon,
   PuzzleIcon,
+  Rocket01Icon,
   Settings01Icon,
   UserGroupIcon,
 } from '@hugeicons/core-free-icons'
@@ -42,7 +45,7 @@ type TabItem = {
   match: (path: string) => boolean
 }
 
-const TABS: Array<TabItem> = [
+export const MOBILE_NAV_TABS: Array<TabItem> = [
   {
     id: 'dashboard',
     label: 'Home',
@@ -56,6 +59,13 @@ const TABS: Array<TabItem> = [
     icon: Chat01Icon,
     to: '/chat/main',
     match: (p) => p.startsWith('/chat') || p === '/new',
+  },
+  {
+    id: 'playground',
+    label: 'Play',
+    icon: Rocket01Icon,
+    to: '/playground',
+    match: (p) => p.startsWith('/playground'),
   },
   {
     id: 'files',
@@ -79,6 +89,14 @@ const TABS: Array<TabItem> = [
     match: (p) => p.startsWith('/jobs'),
   },
   {
+    id: 'swarm',
+    label: 'Swarm',
+    icon: UserGroupIcon,
+    to: '/swarm',
+    match: (p) => p === '/swarm' || p.startsWith('/swarm2'),
+  },
+
+  {
     id: 'memory',
     label: 'Memory',
     icon: BrainIcon,
@@ -91,6 +109,13 @@ const TABS: Array<TabItem> = [
     icon: PuzzleIcon,
     to: '/skills',
     match: (p) => p.startsWith('/skills'),
+  },
+  {
+    id: 'mcp',
+    label: 'MCP',
+    icon: McpServerIcon,
+    to: '/mcp',
+    match: (p) => p.startsWith('/mcp'),
   },
   {
     id: 'profiles',
@@ -128,7 +153,7 @@ export function MobileTabBar() {
 
   // Drag-to-switch: horizontal swipe across pill switches tabs
   const handlePillTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
-    dragStartXRef.current = event.touches[0]?.clientX ?? null
+    dragStartXRef.current = event.touches[0].clientX
     dragStartTimeRef.current = Date.now()
     setIsDragging(false)
   }, [])
@@ -146,7 +171,7 @@ export function MobileTabBar() {
       setIsDragging(false)
 
       if (startX === null) return
-      const endX = event.changedTouches[0]?.clientX ?? startX
+      const endX = event.changedTouches[0].clientX
       const delta = endX - startX
       const elapsed = Date.now() - (dragStartTimeRef.current ?? Date.now())
       const pillWidth = navRef.current?.getBoundingClientRect().width ?? 200
@@ -155,15 +180,19 @@ export function MobileTabBar() {
 
       if (Math.abs(delta) < threshold) return
 
-      const currentIdx = TABS.findIndex((tab) => tab.match(pathname))
+      const currentIdx = MOBILE_NAV_TABS.findIndex((tab) => tab.match(pathname))
       const nextIdx =
         delta < 0
-          ? Math.min(currentIdx + 1, TABS.length - 1) // swipe left → next tab
+          ? Math.min(currentIdx + 1, MOBILE_NAV_TABS.length - 1) // swipe left → next tab
           : Math.max(currentIdx - 1, 0) // swipe right → prev tab
 
-      if (nextIdx !== currentIdx && nextIdx >= 0 && nextIdx < TABS.length) {
+      if (
+        nextIdx !== currentIdx &&
+        nextIdx >= 0 &&
+        nextIdx < MOBILE_NAV_TABS.length
+      ) {
         hapticTap()
-        void navigate({ to: TABS[nextIdx].to })
+        void navigate({ to: MOBILE_NAV_TABS[nextIdx].to })
       }
     },
     [navigate, pathname],
@@ -247,7 +276,7 @@ export function MobileTabBar() {
         onTouchEnd={handlePillTouchEnd}
       >
         <div className="flex items-center gap-1">
-          {TABS.map((tab, idx) => {
+          {MOBILE_NAV_TABS.map((tab, idx) => {
             const isActive = tab.match(pathname)
             const isCenter = tab.id === 'chat'
             const circleSize =

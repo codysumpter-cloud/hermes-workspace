@@ -13,6 +13,12 @@ import { AssistantAvatar, UserAvatar } from '@/components/avatars'
 import { CodeBlock } from '@/components/prompt-kit/code-block'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import { Message, MessageContent } from '@/components/prompt-kit/message'
+import {
+  DialogClose,
+  DialogContent,
+  DialogRoot,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -25,6 +31,11 @@ import {
   useChatSettingsStore,
 } from '@/hooks/use-chat-settings'
 import { cn } from '@/lib/utils'
+import {
+  buildHermesActivitySummary,
+  shouldAutoExpandHermesActivityCard,
+} from './streaming-activity-ui'
+import { TuiActivityCard } from './tui-activity-card'
 
 const WORDS_PER_TICK = 4
 const TICK_INTERVAL_MS = 50
@@ -158,6 +169,10 @@ export type InlineRenderPlanItem =
   | { kind: 'text'; text: string }
   | { kind: 'tool'; section: InlineToolSection }
 
+export type CompactInlineRenderPlanItem =
+  | { kind: 'text'; text: string }
+  | { kind: 'tools'; sections: Array<InlineToolSection> }
+
 export function buildInlineToolRenderPlan(
   message: ChatMessage,
   toolSections: Array<InlineToolSection>,
@@ -192,12 +207,40 @@ export function buildInlineToolRenderPlan(
     }
   }
 
-  const trailingSections = toolSections.filter((section) => !usedKeys.has(section.key))
+  const trailingSections = toolSections.filter(
+    (section) => !usedKeys.has(section.key),
+  )
   for (const section of trailingSections) {
     plan.push({ kind: 'tool', section })
   }
 
   return plan
+}
+
+export function compactInlineToolRenderPlan(
+  plan: Array<InlineRenderPlanItem>,
+): Array<CompactInlineRenderPlanItem> {
+  const compactPlan: Array<CompactInlineRenderPlanItem> = []
+  let pendingToolSections: Array<InlineToolSection> = []
+
+  const flushTools = () => {
+    if (pendingToolSections.length === 0) return
+    compactPlan.push({ kind: 'tools', sections: pendingToolSections })
+    pendingToolSections = []
+  }
+
+  for (const item of plan) {
+    if (item.kind === 'tool') {
+      pendingToolSections.push(item.section)
+      continue
+    }
+
+    flushTools()
+    compactPlan.push(item)
+  }
+
+  flushTools()
+  return compactPlan
 }
 
 function extractToolResultText(msg: ChatMessage | undefined): string {
@@ -350,6 +393,43 @@ function normalizeStreamToolPhase(
     return 'error'
   }
   return 'running'
+}
+
+export type AssistantCorruptionWarning = {
+  kind: 'role-prefix' | 'divider-loop'
+  label: string
+  detail: string
+}
+
+export function detectAssistantCorruptionWarning(
+  role: string,
+  text: string,
+): AssistantCorruptionWarning | null {
+  if (role !== 'assistant') return null
+  const trimmed = text.trimStart()
+  const roleMatch = /^(user|assistant|system)\s*(?:\n|:)/i.exec(trimmed)
+  if (roleMatch) {
+    return {
+      kind: 'role-prefix',
+      label: 'Assistant output contains raw transcript role text',
+      detail: `Stored role is assistant, but the content begins with "${roleMatch[1]}". Treat this as generated text, not a real ${roleMatch[1]} turn.`,
+    }
+  }
+
+  if (text.length > 20_000) {
+    const dividerMatches =
+      text.match(/(?:^|\n)\s*(?:[-_=*]{8,}|[─━]{8,})\s*(?=\n|$)/g) ?? []
+    if (dividerMatches.length >= 20) {
+      return {
+        kind: 'divider-loop',
+        label: 'Assistant output looks corrupted',
+        detail:
+          'This very large assistant message contains repeated divider-like lines and may be a generation loop.',
+      }
+    }
+  }
+
+  return null
 }
 
 function readExecNotification(message: ChatMessage): ExecNotification | null {
@@ -1072,19 +1152,19 @@ function LifecycleEventCard({
 }) {
   return (
     <div
-      className="rounded-lg border px-3 py-1.5 text-[11px]"
+      className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px]"
       style={{
-        background: 'var(--theme-card2)',
-        borderColor: isError
-          ? 'color-mix(in srgb, var(--theme-danger) 45%, var(--theme-border))'
-          : 'var(--theme-border)',
+        background: 'color-mix(in srgb, var(--theme-card2) 70%, transparent)',
+        borderLeft: `2px solid ${
+          isError
+            ? 'color-mix(in srgb, var(--theme-danger) 60%, var(--theme-border))'
+            : 'color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border))'
+        }`,
         color: 'var(--theme-muted)',
       }}
     >
-      <span className="inline-flex items-center gap-1.5">
-        {emoji ? <span className="leading-none">{emoji}</span> : null}
-        <span>{text}</span>
-      </span>
+      {emoji ? <span className="leading-none opacity-80">{emoji}</span> : null}
+      <span className="truncate">{text}</span>
     </div>
   )
 }
@@ -1288,6 +1368,160 @@ function MarkdownMessageCard({ content }: { content: string }) {
   )
 }
 
+type InlineArtifact = {
+  type: string
+  title: string
+  content: string
+}
+
+type InlineArtifactParseResult = {
+  cleanedText: string
+  artifacts: Array<InlineArtifact>
+}
+
+function parseArtifactAttributes(rawAttributes: string): Record<string, string> {
+  const attributes: Record<string, string> = {}
+  const attributeRegex = /(\w+)=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
+
+  for (const match of rawAttributes.matchAll(attributeRegex)) {
+    const key = (match[1] || '').trim().toLowerCase()
+    const value = (match[2] || match[3] || match[4] || '').trim()
+    if (key) {
+      attributes[key] = value
+    }
+  }
+
+  return attributes
+}
+
+export function parseInlineArtifacts(text: string): InlineArtifactParseResult {
+  const artifacts: Array<InlineArtifact> = []
+  const cleanedText = text.replace(
+    /<artifact\b([^>]*)>([\s\S]*?)<\/artifact>/gi,
+    (_, rawAttributes: string, rawContent: string) => {
+      const attributes = parseArtifactAttributes(rawAttributes || '')
+      const content = typeof rawContent === 'string' ? rawContent.trim() : ''
+      if (!content) return ''
+      artifacts.push({
+        type: (attributes.type || 'html').trim().toLowerCase(),
+        title: (attributes.title || 'Artifact').trim() || 'Artifact',
+        content,
+      })
+      return ''
+    },
+  )
+
+  return {
+    cleanedText: cleanedText.replace(/\n{3,}/g, '\n\n').trim(),
+    artifacts,
+  }
+}
+
+function summarizeArtifactContent(artifact: InlineArtifact): string {
+  const singleLine = artifact.content.replace(/\s+/g, ' ').trim()
+  if (singleLine.length <= 140) return singleLine
+  return `${singleLine.slice(0, 137)}…`
+}
+
+function artifactLanguage(type: string): string {
+  if (type === 'js' || type === 'javascript') return 'javascript'
+  if (type === 'ts' || type === 'typescript') return 'typescript'
+  if (type === 'md') return 'markdown'
+  if (type === 'py') return 'python'
+  return type
+}
+
+function ArtifactPreviewBody({ artifact }: { artifact: InlineArtifact }) {
+  if (artifact.type === 'html' || artifact.type === 'svg') {
+    return (
+      <iframe
+        title={artifact.title}
+        sandbox="allow-scripts"
+        srcDoc={artifact.content}
+        className="h-[60vh] w-full rounded-lg border"
+        style={{
+          borderColor: 'var(--theme-border)',
+          background: 'white',
+        }}
+      />
+    )
+  }
+
+  if (artifact.type === 'markdown' || artifact.type === 'md') {
+    return (
+      <div
+        className="max-h-[60vh] overflow-auto rounded-lg border p-4"
+        style={{ borderColor: 'var(--theme-border)' }}
+      >
+        <Markdown className="text-sm">{artifact.content}</Markdown>
+      </div>
+    )
+  }
+
+  return (
+    <CodeBlock
+      content={artifact.content}
+      language={artifactLanguage(artifact.type)}
+      className="my-0 max-h-[60vh] overflow-auto"
+    />
+  )
+}
+
+function InlineArtifactCard({ artifact }: { artifact: InlineArtifact }) {
+  const [open, setOpen] = useState(false)
+  const summary = summarizeArtifactContent(artifact)
+
+  return (
+    <>
+      <div
+        className="rounded-xl border p-3"
+        style={{
+          borderColor: 'var(--chat-assistant-border)',
+          background: 'color-mix(in srgb, var(--chat-assistant-bg) 85%, white 15%)',
+        }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true">🧩</span>
+              <span className="truncate text-sm font-semibold">{artifact.title}</span>
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                style={{
+                  background: 'var(--theme-card2)',
+                  color: 'var(--theme-muted)',
+                }}
+              >
+                {artifact.type}
+              </span>
+            </div>
+            {summary ? (
+              <p className="mt-2 text-xs opacity-80">{summary}</p>
+            ) : null}
+          </div>
+          <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+            Open
+          </Button>
+        </div>
+      </div>
+      <DialogRoot open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[min(1100px,96vw)] max-h-[92vh]">
+          <div className="flex items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: 'var(--theme-border)' }}>
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-base">{artifact.title}</DialogTitle>
+              <div className="text-xs uppercase tracking-wide opacity-70">{artifact.type}</div>
+            </div>
+            <DialogClose>Close</DialogClose>
+          </div>
+          <div className="p-4">
+            <ArtifactPreviewBody artifact={artifact} />
+          </div>
+        </DialogContent>
+      </DialogRoot>
+    </>
+  )
+}
+
 const TOOL_ICONS: Record<string, string> = {
   exec: '\u2699',
   terminal: '\u2699',
@@ -1375,12 +1609,6 @@ function InlineToolSectionItem({
     const id = window.setInterval(() => setElapsed((s) => s + 1), 1000)
     return () => window.clearInterval(id)
   }, [isRunning, toolSection.key])
-  const [dots, setDots] = useState(0)
-  useEffect(() => {
-    if (!isRunning) return
-    const id = window.setInterval(() => setDots((d) => (d + 1) % 4), 400)
-    return () => window.clearInterval(id)
-  }, [isRunning, toolSection.key])
   const elapsedLabel =
     elapsed >= 60
       ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
@@ -1404,72 +1632,145 @@ function InlineToolSectionItem({
   const hasInputData =
     toolSection.input && Object.keys(toolSection.input).length > 0
   const hasOutputData = !!(toolSection.outputText || toolSection.errorText)
-  // Always expandable — show args, output, or at minimum the tool name/state
-  const hasExpandableContent = true
+  const isArtifact = toolSection.type.startsWith('artifact:')
+  const artifactKind = isArtifact ? toolSection.type.slice('artifact:'.length) : null
+  const artifactTitle =
+    typeof toolSection.input?.title === 'string' && toolSection.input.title.trim()
+      ? toolSection.input.title.trim()
+      : 'Artifact'
+  const artifactPath =
+    typeof toolSection.input?.path === 'string' && toolSection.input.path.trim()
+      ? toolSection.input.path.trim()
+      : ''
+  const artifactPreview =
+    typeof toolSection.preview === 'string' && toolSection.preview.trim()
+      ? toolSection.preview.trim()
+      : ''
 
   return (
     <div>
-      {/* ── Card — always clickable to expand ── */}
       <div
         className={cn(
-          'rounded-xl border border-primary-200 bg-primary-50 text-[12px] overflow-hidden',
-          'cursor-pointer hover:border-primary-300 hover:shadow-md transition-all',
-          'shadow-sm',
+          'overflow-hidden rounded-lg border text-[12px] transition-all',
+          'cursor-pointer hover:border-[var(--theme-accent)]/40',
         )}
         style={{
-          borderLeftWidth: '4px',
-          borderLeftColor: isRunning
-            ? '#6366f1'
-            : isDone
-              ? '#22c55e'
-              : '#ef4444',
-          boxShadow: isRunning ? '0 2px 12px rgba(99,102,241,0.15)' : undefined,
+          background: 'color-mix(in srgb, var(--theme-card2) 76%, transparent)',
+          borderColor: 'var(--theme-border)',
+          boxShadow: isRunning ? '0 0 0 1px color-mix(in srgb, var(--theme-accent) 18%, transparent)' : undefined,
         }}
         onClick={() => setOpen((v) => !v)}
         role="button"
         tabIndex={0}
       >
         <div className="flex items-center gap-2 px-3 py-2">
-          <span className="text-base leading-none shrink-0">{icon}</span>
-          <span className="font-mono font-semibold text-ink text-[13px]">
+          <span className="text-sm leading-none shrink-0 opacity-80">{icon}</span>
+          <span className="font-medium text-[12px] text-[var(--theme-text)]">
             {toolDisplayLabel}
           </span>
           {previewLabel && previewLabel !== toolDisplayLabel ? (
-            <span className="truncate opacity-40 text-[10px] font-mono min-w-0">
+            <span className="truncate text-[10px] min-w-0 text-[var(--theme-muted)]">
               {previewLabel}
             </span>
           ) : null}
           <span className="flex-1" />
           {isRunning && (
-            <span className="text-[10px] tabular-nums text-primary-400">
+            <span className="text-[10px] tabular-nums text-[var(--theme-muted)]">
               {elapsedLabel}
             </span>
           )}
-          {isDone && !isRunning && (
-            <span className="text-xs text-green-500">✅</span>
-          )}
-          {isError && <span className="text-xs text-red-500">❌</span>}
+          <span
+            className={cn(
+              'rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]',
+              isRunning
+                ? 'bg-[var(--theme-accent-soft)] text-[var(--theme-accent-strong)]'
+                : isDone
+                  ? 'bg-emerald-500/10 text-emerald-600'
+                  : 'bg-red-500/10 text-red-500',
+            )}
+          >
+            {isRunning ? 'Running' : isDone ? 'Done' : 'Error'}
+          </span>
           {isRunning && (
-            <span className="size-1.5 rounded-full animate-pulse bg-indigo-500" />
+            <span className="size-1.5 rounded-full animate-pulse bg-[var(--theme-accent)]" />
           )}
-          {hasExpandableContent && (
-            <span className="text-[8px] opacity-30 ml-0.5">
-              {open ? '▾' : '▸'}
-            </span>
-          )}
+          <span className="text-[8px] opacity-30 ml-0.5">
+            {open ? '▾' : '▸'}
+          </span>
         </div>
-        {isRunning && (
-          <div className="px-2.5 pb-1.5 text-[10px] text-primary-400">
-            {verb}
-            {'.'.repeat(dots)}
-          </div>
-        )}
       </div>
 
-      {/* ── Expanded detail — terminal-style args + output ── */}
       {open && (
-        <div className="mt-1 ml-3 flex flex-col gap-1.5 pb-1 border-l-2 border-primary-200/40 pl-3 animate-in slide-in-from-top-1 duration-150">
-          {hasInputData && !showRawJson ? (
+        <div className="mt-1 ml-3 flex flex-col gap-1.5 border-l border-[var(--theme-border)]/70 pb-1 pl-3 animate-in slide-in-from-top-1 duration-150">
+          {isArtifact ? (
+            <div
+              className="overflow-hidden rounded-xl border"
+              style={{
+                borderColor: 'var(--theme-border)',
+                background:
+                  'color-mix(in srgb, var(--theme-accent) 4%, var(--theme-card))',
+              }}
+            >
+              <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm" aria-hidden="true">📄</span>
+                    <span className="truncate text-sm font-semibold text-[var(--theme-text)]">
+                      {artifactTitle}
+                    </span>
+                    {artifactKind ? (
+                      <span
+                        className="rounded-full px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                        style={{
+                          background: 'var(--theme-card2)',
+                          color: 'var(--theme-muted)',
+                        }}
+                      >
+                        {artifactKind}
+                      </span>
+                    ) : null}
+                  </div>
+                  {artifactPath ? (
+                    <div
+                      className="mt-1 truncate font-mono text-[11px]"
+                      style={{ color: 'var(--theme-muted)' }}
+                      title={artifactPath}
+                    >
+                      {artifactPath}
+                    </div>
+                  ) : null}
+                </div>
+                {artifactPath ? (
+                  <a
+                    href={artifactPath}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium"
+                    style={{
+                      background: 'var(--theme-card2)',
+                      color: 'var(--theme-text)',
+                    }}
+                  >
+                    Open ↗
+                  </a>
+                ) : null}
+              </div>
+              {artifactPreview ? (
+                <div
+                  className="border-t px-3 py-2 text-xs"
+                  style={{
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-muted)',
+                    background:
+                      'color-mix(in srgb, var(--theme-bg) 75%, transparent)',
+                  }}
+                >
+                  {artifactPreview}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {hasInputData && !showRawJson && !isArtifact ? (
             <div>
               <div className="text-[9px] uppercase tracking-widest text-primary-500 mb-0.5 font-sans">
                 Input
@@ -1495,7 +1796,7 @@ function InlineToolSectionItem({
             </div>
           ) : null}
 
-          {!showRawJson ? (
+          {!showRawJson && !isArtifact ? (
             isError && toolSection.errorText ? (
               <div>
                 <div className="text-[9px] uppercase tracking-widest text-red-500 mb-0.5 font-sans">
@@ -1536,7 +1837,7 @@ function InlineToolSectionItem({
             </pre>
           )}
 
-          {(shouldTruncateOutput || toolSection.outputText) && (
+          {!isArtifact && (shouldTruncateOutput || toolSection.outputText) && (
             <div className="flex flex-wrap items-center gap-2">
               {shouldTruncateOutput && (
                 <button
@@ -1563,7 +1864,7 @@ function InlineToolSectionItem({
             </div>
           )}
           {/* Fallback when no args or output available */}
-          {!hasInputData && !hasOutputData && !isRunning && (
+          {!isArtifact && !hasInputData && !hasOutputData && !isRunning && (
             <div className="text-[10px] text-primary-400 italic">
               No detail available for this tool call
             </div>
@@ -1577,11 +1878,81 @@ function InlineToolSectionItem({
 function ToolCallGroup({
   toolSections,
   expandAll,
+  isStreaming,
 }: {
   toolSections: Array<InlineToolSection>
   expandAll?: boolean
   isStreaming?: boolean
 }) {
+  const shouldAutoOpen = shouldAutoExpandHermesActivityCard({
+    isStreaming: Boolean(isStreaming),
+    toolCount: toolSections.length,
+  })
+  const [open, setOpen] = useState(Boolean(expandAll) || shouldAutoOpen)
+  useEffect(() => {
+    if (expandAll || shouldAutoOpen) setOpen(true)
+  }, [expandAll, shouldAutoOpen])
+
+  const summary = buildHermesActivitySummary(toolSections)
+
+  if (toolSections.length > 1 || isStreaming) {
+    return (
+      <div className="my-2 w-full max-w-[min(100%,700px)] overflow-hidden rounded-lg border border-[color-mix(in_srgb,var(--theme-border)_88%,transparent)] bg-[color-mix(in_srgb,var(--theme-card2)_96%,var(--theme-bg)_4%)]">
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 px-3 py-2 text-left text-[12px]"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="mt-0.5 font-mono text-[12px] leading-none text-[var(--theme-accent)]/85">
+            ┊
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--theme-muted)]">
+                Tool calls
+              </span>
+              <span className="rounded-md border border-[var(--theme-border)] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--theme-muted)]">
+                {summary.countLabel}
+              </span>
+              <span
+                className={cn(
+                  'rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em]',
+                  summary.errorCount > 0
+                    ? 'bg-red-500/8 text-red-500'
+                    : summary.runningCount > 0 || isStreaming
+                      ? 'bg-[var(--theme-accent-soft)] text-[var(--theme-accent-strong)]'
+                      : 'bg-emerald-500/8 text-emerald-600',
+                )}
+              >
+                {summary.statusLabel}
+              </span>
+              <span className="ml-auto shrink-0 font-mono text-[10px] opacity-45">
+                {open ? '▾' : '▸'}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-mono text-[11px] text-[var(--theme-text)]/76">
+              {summary.collapsedLabel}
+            </div>
+          </div>
+        </button>
+        {open && (
+          <div className="border-t border-[color-mix(in_srgb,var(--theme-border)_82%,transparent)] px-3 pb-2.5 pt-2">
+            <div className="flex flex-col gap-1.5">
+              {toolSections.map((toolSection, index) => (
+                <InlineToolSectionItem
+                  key={toolSection.key || `${toolSection.type}-${index}`}
+                  toolSection={toolSection}
+                  index={index}
+                  forceOpen={expandAll}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2.5 my-3 w-full max-w-[min(100%,700px)]">
       {toolSections.map((toolSection, index) => (
@@ -1694,18 +2065,30 @@ function MessageItemComponent({
   }, [])
 
   // Simulate streaming is only active while words are still being revealed
-  const totalWords = countWords(displayText)
-  const revealComplete = revealedWordCount >= totalWords && totalWords > 0
+  const displayWordCount = countWords(displayText)
+  const revealComplete =
+    revealedWordCount >= displayWordCount && displayWordCount > 0
   const effectiveIsStreaming =
     remoteStreamingActive || (_simulateStreaming && !revealComplete)
   const assistantDisplayText = effectiveIsStreaming ? revealedText : displayText
-  const standaloneMarkdownDocument = useMemo(
-    () => extractStandaloneMarkdownFence(assistantDisplayText),
+  const assistantCorruptionWarning = useMemo(
+    () => detectAssistantCorruptionWarning(role, assistantDisplayText),
+    [role, assistantDisplayText],
+  )
+  const parsedInlineArtifacts = useMemo(
+    () => parseInlineArtifacts(assistantDisplayText),
     [assistantDisplayText],
+  )
+  const standaloneMarkdownDocument = useMemo(
+    () =>
+      parsedInlineArtifacts.artifacts.length === 0
+        ? extractStandaloneMarkdownFence(parsedInlineArtifacts.cleanedText)
+        : null,
+    [parsedInlineArtifacts],
   )
 
   useEffect(() => {
-    const totalWords = countWords(displayText)
+    const nextTotalWords = countWords(displayText)
     const previousText = previousTextRef.current
     const previousLength = previousTextLengthRef.current
     const textGrew =
@@ -1713,7 +2096,7 @@ function MessageItemComponent({
       displayText.startsWith(previousText)
     const textChanged = displayText !== previousText
 
-    targetWordCountRef.current = totalWords
+    targetWordCountRef.current = nextTotalWords
     previousTextRef.current = displayText
     previousTextLengthRef.current = displayText.length
 
@@ -1722,12 +2105,12 @@ function MessageItemComponent({
         window.clearInterval(revealTimerRef.current)
         revealTimerRef.current = null
       }
-      setRevealedWordCount(totalWords)
+      setRevealedWordCount(nextTotalWords)
       return
     }
 
     if (textChanged && !textGrew) {
-      setRevealedWordCount(totalWords)
+      setRevealedWordCount(nextTotalWords)
       return
     }
 
@@ -1736,25 +2119,25 @@ function MessageItemComponent({
     }
 
     // Don't start animation if already fully revealed
-    setRevealedWordCount((currentWordCount) => {
-      if (currentWordCount >= totalWords) {
-        return currentWordCount
+    setRevealedWordCount((wordCount) => {
+      if (wordCount >= nextTotalWords) {
+        return wordCount
       }
 
       function tick() {
-        setRevealedWordCount((currentWordCount) => {
+        setRevealedWordCount((visibleWordCount) => {
           const targetWordCount = targetWordCountRef.current
-          if (currentWordCount >= targetWordCount) {
+          if (visibleWordCount >= targetWordCount) {
             if (revealTimerRef.current !== null) {
               window.clearInterval(revealTimerRef.current)
               revealTimerRef.current = null
             }
-            return currentWordCount
+            return visibleWordCount
           }
 
           const nextWordCount = Math.min(
             targetWordCount,
-            currentWordCount + WORDS_PER_TICK,
+            visibleWordCount + WORDS_PER_TICK,
           )
 
           if (
@@ -1770,7 +2153,7 @@ function MessageItemComponent({
       }
 
       revealTimerRef.current = window.setInterval(tick, TICK_INTERVAL_MS)
-      return currentWordCount
+      return wordCount
     })
   }, [displayText, effectiveIsStreaming])
 
@@ -1820,9 +2203,13 @@ function MessageItemComponent({
   const hasInlineImages = inlineImages.length > 0
 
   const hasText = displayText.length > 0
+  const hasRenderableAssistantText =
+    parsedInlineArtifacts.cleanedText.length > 0 ||
+    parsedInlineArtifacts.artifacts.length > 0
   const hasRevealedText = effectiveIsStreaming
-    ? assistantDisplayText.length > 0
-    : hasText
+    ? parsedInlineArtifacts.cleanedText.length > 0 ||
+      parsedInlineArtifacts.artifacts.length > 0
+    : hasRenderableAssistantText
   const canRetryMessage =
     isUser && (hasText || hasAttachments || hasInlineImages)
 
@@ -1997,6 +2384,10 @@ function MessageItemComponent({
     () => buildInlineToolRenderPlan(message, finalToolSections),
     [message, finalToolSections],
   )
+  const compactInlineRenderPlan = useMemo(
+    () => compactInlineToolRenderPlan(inlineRenderPlan),
+    [inlineRenderPlan],
+  )
   const hasToolCalls = finalToolSections.length > 0
   const shouldRenderMessageBubble =
     hasText ||
@@ -2109,59 +2500,29 @@ function MessageItemComponent({
         !isUser && isNew && 'animate-[message-fade-in_0.4s_ease-out]',
       )}
     >
-      {/* Bridge gap: thinking done but first text token not yet arrived (no tool calls active) */}
-      {effectiveIsStreaming && !thinking && !hasText && !hasStreamToolCalls && (
-        <div className="flex items-center gap-1.5 px-1 py-1">
-          <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:0ms]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:150ms]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:300ms]" />
+      {/* Grouped tool card above the assistant bubble. Only show once there
+          is real assistant text in the bubble. While streaming with no text,
+          the legacy ThinkingBubble in chat-message-list owns the visual and
+          renders its own branched TuiActivityCard so we don't double up. */}
+      {!isUser &&
+      finalToolSections.length > 0 &&
+      (hasText || !effectiveIsStreaming) ? (
+        <div className="w-full max-w-[var(--chat-content-max-width)] flex">
+          <div className="w-6 shrink-0" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <TuiActivityCard
+              toolSections={finalToolSections}
+              thinking={null}
+              isStreaming={effectiveIsStreaming}
+              expandAll={expandAllToolSections}
+              formatLabel={formatToolDisplayLabel}
+              formatArg={keyArgLabel}
+            />
+          </div>
         </div>
-      )}
-
-      {thinking && !hasText && !hasStreamToolCalls && (
-        <div className="w-full max-w-[900px]">
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="w-fit">
-              <HugeiconsIcon
-                icon={Idea01Icon}
-                size={20}
-                strokeWidth={1.5}
-                className="opacity-70"
-              />
-              <span>{thinkingStatusLabel}</span>
-              {thinkingElapsedSeconds > 0 ? (
-                <span className="text-xs tabular-nums text-primary-400">
-                  {thinkingElapsedSeconds >= 60
-                    ? `${Math.floor(thinkingElapsedSeconds / 60)}m ${thinkingElapsedSeconds % 60}s`
-                    : `${thinkingElapsedSeconds}s`}
-                </span>
-              ) : null}
-              {effectiveIsStreaming ? (
-                <span className="flex items-center gap-1">
-                  <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:0ms]" />
-                  <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:150ms]" />
-                  <span className="size-1.5 animate-bounce rounded-full bg-primary-400 [animation-delay:300ms]" />
-                </span>
-              ) : null}
-              <HugeiconsIcon
-                icon={ArrowDown01Icon}
-                size={20}
-                strokeWidth={1.5}
-                className="opacity-60 transition-transform duration-150 group-data-panel-open:rotate-180"
-              />
-            </CollapsibleTrigger>
-            <CollapsiblePanel>
-              <div className="rounded-md border border-primary-200 bg-primary-50 p-3">
-                <p className="text-sm text-primary-700 whitespace-pre-wrap text-pretty">
-                  {thinking}
-                </p>
-              </div>
-            </CollapsiblePanel>
-          </Collapsible>
-        </div>
-      )}
+      ) : null}
       {effectiveIsStreaming && hasLifecycleEvents && !hasToolCalls && (
-        <div className="w-full max-w-[900px] flex flex-col gap-1">
+        <div className="w-full max-w-[var(--chat-content-max-width)] flex flex-col gap-1">
           {effectiveLifecycleEvents.map((event, index) => (
             <LifecycleEventCard
               key={`${event.timestamp}-${index}-${event.text}`}
@@ -2174,7 +2535,7 @@ function MessageItemComponent({
       )}
       {/* Narration messages (tool-call activity) — compact collapsible row */}
       {!isUser && (message as any).__isNarration && hasText && (
-        <div className="w-full max-w-[900px]">
+        <div className="w-full max-w-[var(--chat-content-max-width)]">
           <details className="group/narration rounded-lg border border-primary-200/50 bg-primary-50/30 hover:bg-primary-50 dark:hover:bg-primary-800/50 transition-colors">
             <summary className="flex items-center gap-2 cursor-pointer select-none px-3 py-2 list-none [&::-webkit-details-marker]:hidden">
               <span className="size-6 flex items-center justify-center rounded-full bg-accent-500/15 shrink-0">
@@ -2320,75 +2681,64 @@ function MessageItemComponent({
                 ))}
               </div>
             )}
-            {!isUser && hasToolCalls && (
-              <div className="flex flex-col gap-2">
-                {inlineRenderPlan.map((item, index) =>
-                  item.kind === 'tool' ? (
-                    <ToolCallGroup
-                      key={item.section.key || `tool-${index}`}
-                      toolSections={[item.section]}
-                      expandAll={expandAllToolSections}
-                      isStreaming={effectiveIsStreaming}
-                    />
-                  ) : item.text.trim().length > 0 ? (
-                    <div key={`text-${index}`} className="relative">
-                      {extractStandaloneMarkdownFence(item.text) ? (
-                        <MarkdownMessageCard content={extractStandaloneMarkdownFence(item.text)!} />
-                      ) : (
-                        <MessageContent
-                          markdown
-                          className={cn(
-                            'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
-                            effectiveIsStreaming && 'chat-streaming-content',
-                          )}
-                          style={
-                            isUser
-                              ? { color: 'var(--chat-user-foreground)' }
-                              : undefined
-                          }
-                        >
-                          {item.text}
-                        </MessageContent>
-                      )}
-                    </div>
-                  ) : null,
-                )}
-              </div>
-            )}
             {hasText &&
-              !(!isUser && hasToolCalls) &&
               (isUser ? (
                 <span className="text-pretty">{displayText}</span>
               ) : hasRevealedText ? (
                 <div className="relative">
+                  {assistantCorruptionWarning ? (
+                    <div
+                      className="mb-3 rounded-xl border px-3 py-2 text-xs"
+                      style={{
+                        borderColor: 'rgba(245, 158, 11, 0.45)',
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        color: 'var(--chat-assistant-foreground)',
+                      }}
+                    >
+                      <div className="font-semibold">
+                        {assistantCorruptionWarning.label}
+                      </div>
+                      <div className="mt-1 opacity-80">
+                        {assistantCorruptionWarning.detail}
+                      </div>
+                    </div>
+                  ) : null}
                   {standaloneMarkdownDocument ? (
                     <MarkdownMessageCard content={standaloneMarkdownDocument} />
-                  ) : (
+                  ) : parsedInlineArtifacts.cleanedText ? (
                     <MessageContent
                       markdown
                       className={cn(
                         'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
                         effectiveIsStreaming && 'chat-streaming-content',
                       )}
-                      style={
-                        isUser
-                          ? { color: 'var(--chat-user-foreground)' }
-                          : undefined
-                      }
                     >
-                      {assistantDisplayText}
+                      {parsedInlineArtifacts.cleanedText}
                     </MessageContent>
-                  )}
-                  {effectiveIsStreaming && (
+                  ) : null}
+                  {parsedInlineArtifacts.artifacts.length > 0 ? (
+                    <div className="mt-3 flex flex-col gap-3">
+                      {parsedInlineArtifacts.artifacts.map((artifact, index) => (
+                        <InlineArtifactCard
+                          key={`${artifact.title}-${artifact.type}-${index}`}
+                          artifact={artifact}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  {effectiveIsStreaming && parsedInlineArtifacts.cleanedText ? (
                     <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent-500 align-text-bottom" />
-                  )}
+                  ) : null}
                 </div>
               ) : null)}
             {/* Sent indicator — message delivered, waiting for response */}
             {isUser && isQueued && (
               <span
                 className="self-end text-[10px]"
-                style={{ color: 'color-mix(in srgb, var(--chat-user-foreground) 60%, transparent)' }}
+                style={{
+                  color:
+                    'color-mix(in srgb, var(--chat-user-foreground) 60%, transparent)',
+                }}
               >
                 Sent
               </span>
@@ -2396,19 +2746,7 @@ function MessageItemComponent({
           </div>
         </Message>
       )}
-      {/* Fallback working indicator when streaming with no text and no tool calls */}
-      {effectiveIsStreaming && !hasRevealedText && !hasStreamToolCalls ? (
-        <div
-          className="flex items-center gap-2 pl-1 text-xs"
-          style={{ color: 'var(--theme-muted)' }}
-        >
-          <span
-            className="size-1.5 rounded-full animate-pulse"
-            style={{ background: 'var(--theme-accent)' }}
-          />
-          <span>Working&hellip;</span>
-        </div>
-      ) : null}
+      {/* Bottom thinking bubble handles empty streaming states; avoid duplicate in-thread working copy. */}
       {hasAssistantMetadata ? (
         <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5 pl-10 pr-1 mt-0.5 font-mono text-[10px] tabular-nums text-primary-400 leading-relaxed">
           {usageMetadata.inputTokens !== null && (

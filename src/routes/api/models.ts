@@ -1,19 +1,24 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import YAML from 'yaml'
 import { json } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   ensureGatewayProbed,
   getGatewayCapabilities,
-} from '../../server/hermes-api'
-import { BEARER_TOKEN, HERMES_API } from '../../server/gateway-capabilities'
+} from '../../server/claude-api'
+import { BEARER_TOKEN, CLAUDE_API } from '../../server/gateway-capabilities'
 import {
   ensureDiscovery,
   getDiscoveredModels,
   ensureProviderInConfig,
 } from '../../server/local-provider-discovery'
+
+const CLAUDE_HOME = process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
+const MODELS_PATH = path.join(CLAUDE_HOME, 'models.json')
+const CONFIG_PATH = path.join(CLAUDE_HOME, 'config.yaml')
 
 type ModelEntry = {
   provider?: string
@@ -61,16 +66,29 @@ function normalizeModel(entry: unknown): ModelEntry | null {
   }
 }
 
+export function mergeModelEntries(...sources: Array<Array<ModelEntry>>): Array<ModelEntry> {
+  const merged: Array<ModelEntry> = []
+  const seen = new Set<string>()
+
+  for (const source of sources) {
+    for (const model of source) {
+      const normalized = normalizeModel(model)
+      if (!normalized || seen.has(normalized.id)) continue
+      merged.push(normalized)
+      seen.add(normalized.id)
+    }
+  }
+
+  return merged
+}
+
 /**
- * Read user-configured models from ~/.hermes/models.json.
- * This is the curated list the user manages via the Hermes CLI or UI.
- * Each entry has: { id, name, provider, model, baseUrl, createdAt }
+ * Read user-configured models from active profile's models.json.
  */
-function readHermesModelsJson(): Array<ModelEntry> {
-  const modelsPath = path.join(os.homedir(), '.hermes', 'models.json')
+function readClaudeModelsJson(): Array<ModelEntry> {
   try {
-    if (!fs.existsSync(modelsPath)) return []
-    const raw = fs.readFileSync(modelsPath, 'utf-8')
+    if (!fs.existsSync(MODELS_PATH)) return []
+    const raw = fs.readFileSync(MODELS_PATH, 'utf-8')
     const entries = JSON.parse(raw)
     if (!Array.isArray(entries)) return []
     return entries
@@ -91,20 +109,60 @@ function readHermesModelsJson(): Array<ModelEntry> {
   }
 }
 
-/**
- * Read the default model from ~/.hermes/config.yaml without a YAML parser.
- * Looks for "default: <model-id>" under the "model:" section.
- */
-function readHermesDefaultModel(): ModelEntry | null {
-  const configPath = path.join(os.homedir(), '.hermes', 'config.yaml')
+const DEFAULT_ACCEPTED_TIMEOUT_S = 120
+const DEFAULT_HANDOFF_TIMEOUT_S = 300
+
+function readStreamTimeouts(): { streamAcceptedTimeoutMs: number; streamHandoffTimeoutMs: number } {
+  let acceptedS = DEFAULT_ACCEPTED_TIMEOUT_S
+  let handoffS = DEFAULT_HANDOFF_TIMEOUT_S
   try {
-    if (!fs.existsSync(configPath)) return null
-    const raw = fs.readFileSync(configPath, 'utf-8')
-    const defaultMatch = raw.match(/^\s*default:\s*(.+)$/m)
-    const providerMatch = raw.match(/^\s*provider:\s*(.+)$/m)
-    if (!defaultMatch) return null
-    const modelId = defaultMatch[1].trim()
-    const provider = providerMatch ? providerMatch[1].trim() : 'unknown'
+    if (fs.existsSync(CONFIG_PATH)) {
+      const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+      const ws =
+        parsed && typeof parsed === 'object' && typeof (parsed as Record<string, unknown>).workspace === 'object'
+          ? ((parsed as Record<string, unknown>).workspace as Record<string, unknown>)
+          : {}
+      if (typeof ws.stream_accepted_timeout === 'number' && ws.stream_accepted_timeout > 0)
+        acceptedS = ws.stream_accepted_timeout
+      if (typeof ws.stream_handoff_timeout === 'number' && ws.stream_handoff_timeout > 0)
+        handoffS = ws.stream_handoff_timeout
+    }
+  } catch {
+    // fall through to defaults
+  }
+  const envAccepted = parseInt(process.env.STREAM_ACCEPTED_TIMEOUT_MS ?? '', 10)
+  const envHandoff = parseInt(process.env.STREAM_HANDOFF_TIMEOUT_MS ?? '', 10)
+  return {
+    streamAcceptedTimeoutMs: Number.isFinite(envAccepted) && envAccepted > 0 ? envAccepted : acceptedS * 1000,
+    streamHandoffTimeoutMs: Number.isFinite(envHandoff) && envHandoff > 0 ? envHandoff : handoffS * 1000,
+  }
+}
+
+/**
+ * Read the default model from active profile's config.yaml using a proper YAML parser.
+ */
+function readClaudeDefaultModel(): ModelEntry | null {
+  try {
+    if (!fs.existsSync(CONFIG_PATH)) return null
+    const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
+    const parsed = YAML.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const config = parsed as Record<string, unknown>
+    let modelId = ''
+    let provider = ''
+    const modelField = config.model
+    if (typeof modelField === 'string') {
+      modelId = modelField
+      provider = (config.provider as string) || 'unknown'
+    } else if (modelField && typeof modelField === 'object') {
+      const modelObj = modelField as Record<string, unknown>
+      modelId = (modelObj.default as string) || ''
+      provider =
+        (modelObj.provider as string) ||
+        (config.provider as string) ||
+        'unknown'
+    }
+    if (!modelId) return null
     return { id: modelId, name: modelId, provider }
   } catch {
     return null
@@ -114,10 +172,10 @@ function readHermesDefaultModel(): ModelEntry | null {
 /**
  * Fallback: fetch models from the hermes-agent /v1/models endpoint.
  */
-async function fetchHermesModels(): Promise<Array<ModelEntry>> {
+async function fetchClaudeModels(): Promise<Array<ModelEntry>> {
   const headers: Record<string, string> = {}
   if (BEARER_TOKEN) headers['Authorization'] = `Bearer ${BEARER_TOKEN}`
-  const response = await fetch(`${HERMES_API}/v1/models`, { headers })
+  const response = await fetch(`${CLAUDE_API}/v1/models`, { headers })
   if (!response.ok)
     throw new Error(`Hermes models request failed (${response.status})`)
   const payload = asRecord(await response.json())
@@ -142,34 +200,32 @@ export const Route = createFileRoute('/api/models')({
 
         try {
           // Primary: read user-configured models from ~/.hermes/models.json
-          let models = readHermesModelsJson()
+          let models = readClaudeModelsJson()
           let source = 'models.json'
 
-          // Ensure the default model from config.yaml is always included
-          const defaultModel = readHermesDefaultModel()
+          // Ensure the default model from config.yaml is always first
+          const defaultModel = readClaudeDefaultModel()
           if (defaultModel) {
-            const hasDefault = models.some((m) => m.id === defaultModel.id)
-            if (!hasDefault) {
-              models.unshift(defaultModel)
-            }
+            models = models.filter((m) => m.id !== defaultModel.id)
+            models.unshift(defaultModel)
           }
 
-          // Fallback: if no models.json, fetch from hermes-agent /v1/models
-          if (models.length === 0 && getGatewayCapabilities().models) {
-            models = await fetchHermesModels()
-            source = 'hermes-agent'
+          // Merge the authoritative Hermes model catalog whenever it is
+          // available. Previously, a non-empty models.json stopped here, so the
+          // Operations picker only showed the local Workspace subset and drifted
+          // from the CLI/backend model universe.
+          if (getGatewayCapabilities().models) {
+            const hermesModels = await fetchClaudeModels()
+            models = mergeModelEntries(models, hermesModels)
+            source = source === 'models.json' ? 'models.json+hermes-agent' : 'hermes-agent'
           }
 
           // Merge auto-discovered local models (Ollama, Atomic Chat, etc.)
           await ensureDiscovery()
           const localModels = getDiscoveredModels()
-          const existingIds = new Set(models.map((m) => m.id))
+          models = mergeModelEntries(models, localModels)
           for (const m of localModels) {
-            if (!existingIds.has(m.id)) {
-              models.push(m)
-              existingIds.add(m.id)
-              ensureProviderInConfig(m.provider)
-            }
+            ensureProviderInConfig(m.provider)
           }
 
           const configuredProviders = Array.from(
@@ -182,6 +238,8 @@ export const Route = createFileRoute('/api/models')({
             ),
           )
 
+          const streamTimeouts = readStreamTimeouts()
+
           return json({
             ok: true,
             object: 'list',
@@ -189,6 +247,7 @@ export const Route = createFileRoute('/api/models')({
             models,
             configuredProviders,
             source,
+            ...streamTimeouts,
           })
         } catch (err) {
           return json(

@@ -2,6 +2,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   CheckmarkCircle02Icon,
   CloudIcon,
+  Link01Icon,
   MessageMultiple01Icon,
   Mic01Icon,
   Notification03Icon,
@@ -12,17 +13,25 @@ import {
   UserIcon,
   VolumeHighIcon,
 } from '@hugeicons/core-free-icons'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import type * as React from 'react'
 import type { LoaderStyle } from '@/hooks/use-chat-settings'
 import type { BrailleSpinnerPreset } from '@/components/ui/braille-spinner'
 import type { ThemeId } from '@/lib/theme'
+import type { SettingsNavId } from '@/components/settings/settings-sidebar'
+import type {LocaleId} from '@/lib/i18n';
+import { GROQ_STT_MODELS, STT_PROVIDER_OPTIONS } from '@/lib/stt-config'
+import {
+  SETTINGS_NAV_ITEMS,
+  SettingsMobilePills,
+  SettingsSidebar,
+} from '@/components/settings/settings-sidebar'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
-import { getLocale, setLocale, LOCALE_LABELS, type LocaleId } from '@/lib/i18n'
+import { LOCALE_LABELS,  getLocale, setLocale } from '@/lib/i18n'
 import { THEMES, getTheme, isDarkTheme, setTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import {
@@ -36,8 +45,21 @@ import { BrailleSpinner } from '@/components/ui/braille-spinner'
 import { ThreeDotsSpinner } from '@/components/ui/three-dots-spinner'
 // useWorkspaceStore removed — hamburger eliminated on mobile
 
+const VALID_SECTION_IDS: ReadonlyArray<SettingsNavId> = SETTINGS_NAV_ITEMS.map(
+  (item) => item.id,
+)
+
 export const Route = createFileRoute('/settings/')({
   ssr: false,
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { section?: SettingsNavId } => {
+    const raw = typeof search.section === 'string' ? search.section : undefined
+    if (raw && (VALID_SECTION_IDS as ReadonlyArray<string>).includes(raw)) {
+      return { section: raw as SettingsNavId }
+    }
+    return {}
+  },
   component: SettingsRoute,
 })
 
@@ -91,61 +113,89 @@ const THEME_PREVIEWS: Record<
   ThemeId,
   { bg: string; panel: string; border: string; accent: string; text: string }
 > = {
-  'hermes-nous': {
+  'claude-nous': {
     bg: '#031a1a',
     panel: '#082224',
     border: 'rgba(255,255,255,0.12)',
     accent: '#ffac02',
     text: '#f8f1e3',
   },
-  'hermes-nous-light': {
+  'claude-nous-light': {
     bg: '#F8FAF8',
     panel: '#FBFDFB',
     border: 'rgba(30,74,92,0.18)',
     accent: '#2557B7',
     text: '#16315F',
   },
-  'hermes-official': {
+  'claude-official': {
     bg: '#0A0E1A',
     panel: '#11182A',
     border: '#24304A',
     accent: '#6366F1',
     text: '#E6EAF2',
   },
-  'hermes-official-light': {
+  'claude-official-light': {
     bg: '#F7F7F1',
     panel: '#FAFBF6',
     border: '#CDD5DA',
     accent: '#2557B7',
     text: '#16315F',
   },
-  'hermes-classic': {
+  'claude-classic': {
     bg: '#0d0f12',
     panel: '#1a1f26',
     border: '#2a313b',
     accent: '#b98a44',
     text: '#eceff4',
   },
-  'hermes-slate': {
+  'claude-slate': {
     bg: '#0d1117',
     panel: '#1c2128',
     border: '#30363d',
     accent: '#7eb8f6',
     text: '#c9d1d9',
   },
-  'hermes-classic-light': {
+  'claude-classic-light': {
     bg: '#F5F2ED',
     panel: '#FFFFFF',
     border: '#D9D0C4',
     accent: '#b98a44',
     text: '#1a1f26',
   },
-  'hermes-slate-light': {
+  'matrix': {
+    bg: '#020804',
+    panel: '#07130A',
+    border: 'rgba(0,255,65,0.28)',
+    accent: '#00FF41',
+    text: '#D8FFE3',
+  },
+  'matrix-light': {
+    bg: '#F4FFF6',
+    panel: '#FFFFFF',
+    border: 'rgba(0,126,34,0.2)',
+    accent: '#008F2D',
+    text: '#062A12',
+  },
+  'claude-slate-light': {
     bg: '#F6F8FA',
     panel: '#FFFFFF',
     border: '#D0D7DE',
     accent: '#3b82f6',
     text: '#1F2328',
+  },
+  'scifi': {
+    bg: '#060b18',
+    panel: '#0a1628',
+    border: '#1a3a5c',
+    accent: '#00f0ff',
+    text: '#e0f7fa',
+  },
+  'scifi-light': {
+    bg: '#EEF1F5',
+    panel: '#FFFFFF',
+    border: '#B0BEC5',
+    accent: '#0097A7',
+    text: '#0A1628',
   },
 }
 
@@ -245,36 +295,7 @@ function SettingsRow({ label, description, children }: RowProps) {
   )
 }
 
-type SettingsSectionId =
-  | 'profile'
-  | 'appearance'
-  | 'chat'
-  | 'hermes'
-  | 'agent'
-  | 'routing'
-  | 'voice'
-  | 'display'
-  | 'notifications'
-  | 'advanced'
-
-type SettingsNavItem = {
-  id: SettingsSectionId | 'mcp'
-  label: string
-  to?: '/settings/mcp'
-}
-
-const SETTINGS_NAV_ITEMS: Array<SettingsNavItem> = [
-  { id: 'hermes', label: 'Model & Provider' },
-  { id: 'agent', label: 'Agent Behavior' },
-  { id: 'routing', label: 'Smart Routing' },
-  { id: 'voice', label: 'Voice' },
-  { id: 'display', label: 'Display' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'chat', label: 'Chat' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'mcp', label: 'MCP Servers', to: '/settings/mcp' },
-  { id: 'language' as SettingsSectionId, label: 'Language' },
-]
+type SettingsSectionId = SettingsNavId
 
 function SettingsRoute() {
   usePageTitle('Settings')
@@ -310,8 +331,8 @@ function SettingsRoute() {
     void fetchModels()
   }, [])
 
-  const [activeSection, setActiveSection] =
-    useState<SettingsSectionId>('hermes')
+  const { section } = Route.useSearch()
+  const activeSection: SettingsSectionId = section ?? 'claude'
 
   return (
     <div className="min-h-screen bg-surface text-primary-900">
@@ -319,92 +340,30 @@ function SettingsRoute() {
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-br from-primary-100/25 via-transparent to-primary-300/20" />
 
       <main className="relative mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pt-6 pb-24 sm:px-6 md:flex-row md:gap-6 md:pb-8 lg:pt-8">
-        {/* Sidebar nav */}
-        <nav className="hidden w-48 shrink-0 md:block">
-          <div className="sticky top-8">
-            <h1 className="mb-4 text-lg font-semibold text-primary-900 px-3">
-              Settings
-            </h1>
-            <div className="flex flex-col gap-0.5">
-              {SETTINGS_NAV_ITEMS.map((item) =>
-                item.to ? (
-                  <Link
-                    key={item.id}
-                    to={item.to}
-                    className="rounded-lg px-3 py-2 text-left text-sm text-primary-600 transition-colors hover:bg-primary-100 hover:text-primary-900"
-                  >
-                    {item.label}
-                  </Link>
-                ) : (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() =>
-                      setActiveSection(item.id as SettingsSectionId)
-                    }
-                    className={cn(
-                      'rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                      activeSection === item.id
-                        ? 'bg-accent-500/10 text-accent-600 font-medium'
-                        : 'text-primary-600 hover:bg-primary-100 hover:text-primary-900',
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-        </nav>
+        <SettingsSidebar activeId={activeSection} />
 
-        {/* Mobile header — intentionally omitted; MobilePageHeader above shows "Settings" */}
-
-        {/* Mobile section pills */}
-        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none md:hidden">
-          {SETTINGS_NAV_ITEMS.map((item) =>
-            item.to ? (
-              <Link
-                key={item.id}
-                to={item.to}
-                className="shrink-0 rounded-full bg-primary-100 px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors"
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveSection(item.id as SettingsSectionId)}
-                className={cn(
-                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                  activeSection === item.id
-                    ? 'bg-accent-500 text-white'
-                    : 'bg-primary-100 text-primary-600',
-                )}
-              >
-                {item.label}
-              </button>
-            ),
-          )}
-        </div>
+        <SettingsMobilePills activeId={activeSection} />
 
         {/* Content area */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* -- Connection ------------------ */}
+          {activeSection === 'connection' && <ConnectionSection />}
+
           {/* ── Hermes Agent ──────────────────────────────────── */}
-          {activeSection === 'hermes' && (
-            <HermesConfigSection activeView="hermes" />
+          {activeSection === 'claude' && (
+            <ClaudeConfigSection activeView="claude" />
           )}
           {activeSection === 'agent' && (
-            <HermesConfigSection activeView="agent" />
+            <ClaudeConfigSection activeView="agent" />
           )}
           {activeSection === 'routing' && (
-            <HermesConfigSection activeView="routing" />
+            <ClaudeConfigSection activeView="routing" />
           )}
           {activeSection === 'voice' && (
-            <HermesConfigSection activeView="voice" />
+            <ClaudeConfigSection activeView="voice" />
           )}
           {activeSection === 'display' && (
-            <HermesConfigSection activeView="display" />
+            <ClaudeConfigSection activeView="display" />
           )}
 
           {/* ── Appearance ──────────────────────────────────────── */}
@@ -415,18 +374,19 @@ function SettingsRoute() {
                 description="Choose a workspace theme and accent color."
                 icon={PaintBoardIcon}
               >
-                <SettingsRow
-                  label="Theme"
-                  description="Choose the workspace palette. Light and dark variants are both available."
-                >
-                  <div className="w-full">
-                    <WorkspaceThemePicker />
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm font-medium text-primary-900">
+                      Theme
+                    </p>
+                    <p className="text-xs text-primary-600 text-pretty">
+                      Choose the workspace palette. Light and dark variants are
+                      both available.
+                    </p>
                   </div>
-                </SettingsRow>
-
-                {/* Accent color removed — themes control accent */}
+                  <WorkspaceThemePicker />
+                </div>
               </SettingsSection>
-              {/* LoaderStyleSection removed — not relevant for Hermes */}
             </>
           )}
 
@@ -510,8 +470,12 @@ function SettingsRoute() {
                   }}
                   className="h-9 w-full rounded-lg border border-primary-200 dark:border-gray-600 bg-primary-50 dark:bg-gray-800 px-3 text-sm text-primary-900 dark:text-gray-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-400 md:max-w-xs"
                 >
-                  {(Object.entries(LOCALE_LABELS) as Array<[LocaleId, string]>).map(([id, label]) => (
-                    <option key={id} value={id}>{label}</option>
+                  {(
+                    Object.entries(LOCALE_LABELS) as Array<[LocaleId, string]>
+                  ).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
                   ))}
                 </select>
               </SettingsRow>
@@ -845,6 +809,71 @@ function ChatDisplaySection() {
             aria-label="Show reasoning blocks"
           />
         </SettingsRow>
+        <SettingsRow
+          label="Sound on response complete"
+          description="Play a short sound in the browser when the agent finishes replying."
+        >
+          <Switch
+            checked={chatSettings.soundOnChatComplete}
+            onCheckedChange={(checked) =>
+              updateChatSettings({ soundOnChatComplete: checked })
+            }
+            aria-label="Sound on response complete"
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Enter key behavior"
+          description={
+            chatSettings.enterBehavior === 'newline'
+              ? 'Enter inserts a newline. Use ⌘/Ctrl+Enter to send.'
+              : 'Enter sends the message. Use Shift+Enter for a newline.'
+          }
+        >
+          <Switch
+            checked={chatSettings.enterBehavior === 'newline'}
+            onCheckedChange={(checked) =>
+              updateChatSettings({
+                enterBehavior: checked ? 'newline' : 'send',
+              })
+            }
+            aria-label="Enter inserts newline instead of sending"
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Chat content width"
+          description="Controls the max-width of the message column on wide screens."
+        >
+          <select
+            value={chatSettings.chatWidth}
+            onChange={(e) =>
+              updateChatSettings({
+                chatWidth: e.target.value as 'comfortable' | 'wide' | 'full',
+              })
+            }
+            className="h-8 rounded-md border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-400"
+            aria-label="Chat content width"
+          >
+            <option value="comfortable">Comfortable (900px)</option>
+            <option value="wide">Wide (1200px)</option>
+            <option value="full">Full width</option>
+          </select>
+        </SettingsRow>
+        <SettingsRow
+          label="Expand sidebar on hover"
+          description={
+            chatSettings.sidebarHoverExpand
+              ? 'Collapsed sidebar expands temporarily when you hover over it.'
+              : 'Collapsed sidebar stays at 48px. Click the toggle to open (default).'
+          }
+        >
+          <Switch
+            checked={chatSettings.sidebarHoverExpand}
+            onCheckedChange={(checked) =>
+              updateChatSettings({ sidebarHoverExpand: checked })
+            }
+            aria-label="Expand sidebar on hover"
+          />
+        </SettingsRow>
       </SettingsSection>
       {/* Mobile Navigation removed — not relevant for Hermes Workspace */}
     </>
@@ -857,7 +886,7 @@ type LoaderStyleOption = { value: LoaderStyle; label: string }
 
 const LOADER_STYLES: Array<LoaderStyleOption> = [
   { value: 'dots', label: 'Dots' },
-  { value: 'braille-hermes', label: 'Hermes' },
+  { value: 'braille-claude', label: 'Claude' },
   { value: 'braille-orbit', label: 'Orbit' },
   { value: 'braille-breathe', label: 'Breathe' },
   { value: 'braille-pulse', label: 'Pulse' },
@@ -868,7 +897,7 @@ const LOADER_STYLES: Array<LoaderStyleOption> = [
 
 function getPreset(style: LoaderStyle): BrailleSpinnerPreset | null {
   const map: Record<string, BrailleSpinnerPreset> = {
-    'braille-hermes': 'hermes',
+    'braille-claude': 'claude',
     'braille-orbit': 'orbit',
     'braille-breathe': 'breathe',
     'braille-pulse': 'pulse',
@@ -937,7 +966,7 @@ function _LoaderStyleSection() {
 
 // ── Hermes Agent Configuration ──────────────────────────────────────
 
-type HermesProvider = {
+type ClaudeProvider = {
   id: string
   name: string
   authType: string
@@ -946,15 +975,18 @@ type HermesProvider = {
   maskedKeys: Record<string, string>
 }
 
-type HermesConfigData = {
+type ClaudeConfigData = {
   config: Record<string, unknown>
-  providers: Array<HermesProvider>
+  providers: Array<ClaudeProvider>
   activeProvider: string
   activeModel: string
-  hermesHome: string
+  claudeHome: string
 }
 
-const HERMES_API = process.env.HERMES_API_URL || 'http://127.0.0.1:8642'
+const CLAUDE_API =
+  process.env.HERMES_API_URL ||
+  process.env.CLAUDE_API_URL ||
+  'http://127.0.0.1:8642'
 
 type AvailableModelsResponse = {
   provider: string
@@ -962,12 +994,12 @@ type AvailableModelsResponse = {
   providers: Array<{ id: string; label: string; authenticated: boolean }>
 }
 
-function HermesConfigSection({
-  activeView = 'hermes',
+function ClaudeConfigSection({
+  activeView = 'claude',
 }: {
-  activeView?: 'hermes' | 'agent' | 'routing' | 'voice' | 'display'
+  activeView?: 'claude' | 'agent' | 'routing' | 'voice' | 'display'
 }) {
-  const [data, setData] = useState<HermesConfigData | null>(null)
+  const [data, setData] = useState<ClaudeConfigData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -976,6 +1008,10 @@ function HermesConfigSection({
   const [modelInput, setModelInput] = useState('')
   const [providerInput, setProviderInput] = useState('')
   const [baseUrlInput, setBaseUrlInput] = useState('')
+  const [customApiKey, setCustomApiKey] = useState('')
+  const [customBaseUrl, setCustomBaseUrl] = useState('')
+  const [editingCustomKey, setEditingCustomKey] = useState(false)
+  const [editingCustomBaseUrl, setEditingCustomBaseUrl] = useState(false)
 
   const [availableProviders, setAvailableProviders] = useState<
     Array<{ id: string; label: string; authenticated: boolean }>
@@ -985,15 +1021,18 @@ function HermesConfigSection({
   >([])
   const [loadingModels, setLoadingModels] = useState(false)
 
-  const syncInputsFromData = useCallback((configData: HermesConfigData) => {
+  const syncInputsFromData = useCallback((configData: ClaudeConfigData) => {
     setModelInput(configData.activeModel || '')
     setProviderInput(configData.activeProvider || '')
     setBaseUrlInput((configData.config?.base_url as string) || '')
+    const providersConfig = configData.config?.providers as Record<string, unknown> | undefined
+    const customConfig = (providersConfig?.manifest || providersConfig?.custom) as Record<string, unknown> | undefined
+    setCustomBaseUrl((customConfig?.base_url as string) || '')
   }, [])
 
   const fetchConfig = useCallback(async () => {
-    const res = await fetch('/api/hermes-config')
-    const configData = (await res.json()) as HermesConfigData
+    const res = await fetch('/api/claude-config')
+    const configData = (await res.json()) as ClaudeConfigData
     setData(configData)
     syncInputsFromData(configData)
     return configData
@@ -1007,7 +1046,7 @@ function HermesConfigSection({
     setLoadingModels(true)
     try {
       const res = await fetch(
-        `/api/hermes-proxy/api/available-models?provider=${encodeURIComponent(provider)}`,
+        `/api/claude-proxy/api/available-models?provider=${encodeURIComponent(provider)}`,
       )
       if (res.ok) {
         const result = (await res.json()) as AvailableModelsResponse
@@ -1038,7 +1077,7 @@ function HermesConfigSection({
     setSaving(true)
     setSaveMessage(null)
     try {
-      const res = await fetch('/api/hermes-config', {
+      const res = await fetch('/api/claude-config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -1129,8 +1168,9 @@ function HermesConfigSection({
   const ttsOpenAi = (ttsConfig.openai as Record<string, unknown>) || {}
   const sttProvider = (sttConfig.provider as string) || 'local'
   const sttLocal = (sttConfig.local as Record<string, unknown>) || {}
+  const sttGroq = (sttConfig.groq as Record<string, unknown>) || {}
 
-  const renderHermesOverview = () => (
+  const renderClaudeOverview = () => (
     <>
       <SettingsSection
         title="Model & Provider"
@@ -1174,7 +1214,7 @@ function HermesConfigSection({
         </SettingsRow>
         <SettingsRow
           label="Model"
-          description="The model Hermes uses for conversations."
+          description="The model Claude uses for conversations."
         >
           <div className="flex w-full max-w-sm gap-2">
             {availableModels.length > 0 ? (
@@ -1247,7 +1287,7 @@ function HermesConfigSection({
         icon={CloudIcon}
       >
         {data.providers
-          .filter((p) => p.envKeys.length > 0)
+          .filter((p) => p.envKeys.length > 0 && p.id !== 'custom')
           .map((provider) => (
             <SettingsRow
               key={provider.id}
@@ -1382,64 +1422,141 @@ function HermesConfigSection({
 
       <SettingsSection
         title="Custom Providers"
-        description="Read-only provider details loaded from config.yaml."
+        description="Configure a custom OpenAI-compatible endpoint."
         icon={CloudIcon}
       >
-        <div className="space-y-3">
-          {customProviders.length === 0 ? (
-            <div className="rounded-xl border border-primary-200 bg-primary-100/40 p-3 text-sm text-primary-600">
-              No custom providers configured.
-            </div>
-          ) : (
-            customProviders.map((provider, index) => (
-              <div
-                key={`${String(provider.name || provider.base_url || index)}`}
-                className="rounded-xl border border-primary-200 bg-primary-100/40 p-3"
-              >
-                <div className="grid gap-2 text-sm md:grid-cols-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-primary-500">
-                      Name
-                    </p>
-                    <p className="font-medium text-primary-900">
-                      {String(provider.name || 'Unnamed')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-primary-500">
-                      Base URL
-                    </p>
-                    <p className="font-mono text-xs text-primary-700 break-all">
-                      {String(provider.base_url || 'Not set')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-primary-500">
-                      Type
-                    </p>
-                    <p className="text-primary-700">
-                      {String(provider.type || provider.auth_type || 'Unknown')}
-                    </p>
-                  </div>
+        <SettingsRow
+          label="Custom OpenAI-compatible"
+          description={
+            data.providers.find((p) => p.envKeys.includes('CUSTOM_API_KEY'))
+              ?.configured
+              ? '✅ Configured'
+              : '❌ Not configured'
+          }
+        >
+          <div className="flex w-full max-w-sm items-center gap-2">
+            <div className="flex-1">
+              {editingCustomKey ? (
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={customApiKey}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setCustomApiKey(e.target.value)
+                    }
+                    placeholder="Enter CUSTOM_API_KEY"
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      void saveConfig({ env: { CUSTOM_API_KEY: customApiKey } })
+                      setEditingCustomKey(false)
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingCustomKey(false)}
+                  >
+                    ✕
+                  </Button>
                 </div>
-              </div>
-            ))
-          )}
-          <div className="flex flex-col gap-3 rounded-xl border border-primary-200 bg-primary-100/40 p-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm text-primary-600">
-              Edit custom providers in config.yaml for security.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void navigator.clipboard?.writeText(data.hermesHome)
-              }
-            >
-              Copy config path
-            </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs font-mono"
+                    style={{ color: 'var(--theme-muted)' }}
+                  >
+                    {data.providers.find((p) =>
+                      p.envKeys.includes('CUSTOM_API_KEY'),
+                    )?.maskedKeys?.['CUSTOM_API_KEY'] || 'Not set'}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingCustomKey(true)
+                      setCustomApiKey('')
+                    }}
+                  >
+                    {data.providers.find((p) =>
+                      p.envKeys.includes('CUSTOM_API_KEY'),
+                    )?.configured
+                      ? 'Change'
+                      : 'Add'}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </SettingsRow>
+        <SettingsRow
+          label="Custom Base URL"
+          description={customBaseUrl ? `✅ ${customBaseUrl}` : '❌ Not configured'}
+        >
+          <div className="flex w-full max-w-sm items-center gap-2">
+            <div className="flex-1">
+              {editingCustomBaseUrl ? (
+                <div className="flex gap-2">
+                  <Input
+                    value={customBaseUrl}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setCustomBaseUrl(e.target.value)
+                    }
+                    placeholder="https://api.example.com/v1"
+                    className="flex-1 font-mono text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      void saveConfig({
+                        config: {
+                          model: { provider: 'manifest' },
+                          providers: {
+                            manifest: {
+                              type: 'openai',
+                              base_url: customBaseUrl,
+                              key_env: 'CUSTOM_API_KEY',
+                            },
+                          },
+                        },
+                      })
+                      setEditingCustomBaseUrl(false)
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingCustomBaseUrl(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs font-mono"
+                    style={{ color: 'var(--theme-muted)' }}
+                  >
+                    {customBaseUrl || 'Not set'}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingCustomBaseUrl(true)}
+                  >
+                    {customBaseUrl ? 'Edit' : 'Add'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
@@ -1449,13 +1566,13 @@ function HermesConfigSection({
       >
         <SettingsRow
           label="Config location"
-          description="Where Hermes stores its configuration."
+          description="Where Claude stores its configuration."
         >
           <span
             className="text-xs font-mono"
             style={{ color: 'var(--theme-muted)' }}
           >
-            {data.hermesHome}
+            {data.claudeHome}
           </span>
         </SettingsRow>
         <SettingsRow
@@ -1745,8 +1862,11 @@ function HermesConfigSection({
             }
             className={selectClassName}
           >
-            <option value="local">Local (Whisper)</option>
-            <option value="openai">OpenAI Whisper API</option>
+            {STT_PROVIDER_OPTIONS.map((provider) => (
+              <option key={provider.value} value={provider.value}>
+                {provider.label}
+              </option>
+            ))}
           </select>
         </SettingsRow>
         {sttProvider === 'local' && (
@@ -1770,6 +1890,45 @@ function HermesConfigSection({
               ))}
             </select>
           </SettingsRow>
+        )}
+        {sttProvider === 'groq' && (
+          <>
+            <SettingsRow
+              label="Groq model"
+              description="Choose the Whisper model Groq should run."
+            >
+              <select
+                value={(sttGroq.model as string) || GROQ_STT_MODELS[0]}
+                onChange={(e) =>
+                  void saveConfig({
+                    config: { stt: { groq: { ...sttGroq, model: e.target.value } } },
+                  })
+                }
+                className={selectClassName}
+              >
+                {GROQ_STT_MODELS.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </SettingsRow>
+            <SettingsRow
+              label="Language"
+              description="Optional BCP-47 code, e.g. en or en-US. Leave blank for auto-detect."
+            >
+              <Input
+                value={(sttConfig.language as string) || ''}
+                onChange={(e) =>
+                  void saveConfig({
+                    config: { stt: { language: e.target.value } },
+                  })
+                }
+                placeholder="auto"
+                className="md:w-64"
+              />
+            </SettingsRow>
+          </>
         )}
       </SettingsSection>
     </div>
@@ -1850,7 +2009,7 @@ function HermesConfigSection({
   )
 
   const sectionContent = {
-    hermes: renderHermesOverview(),
+    claude: renderClaudeOverview(),
     agent: renderAgentBehavior(),
     routing: renderSmartRouting(),
     voice: renderVoice(),
@@ -1874,5 +2033,172 @@ function HermesConfigSection({
       )}
       {sectionContent[activeView]}
     </>
+  )
+}
+
+// ── Connection Section ──────────────────────────────────────────────────
+
+type ConnectionSettings = {
+  gateway: string
+  dashboard: string
+  source: 'override' | 'env' | 'default'
+}
+
+function ConnectionSection() {
+  const [current, setCurrent] = useState<ConnectionSettings | null>(null)
+  const [gatewayInput, setGatewayInput] = useState('')
+  const [dashboardInput, setDashboardInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [isError, setIsError] = useState(false)
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/connection-settings')
+      if (!res.ok) return
+      const data = (await res.json()) as ConnectionSettings
+      setCurrent(data)
+      setGatewayInput(data.gateway)
+      setDashboardInput(data.dashboard)
+    } catch {
+      // non-fatal
+    }
+  }, [])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const save = async () => {
+    setSaving(true)
+    setMessage(null)
+    setIsError(false)
+    try {
+      const res = await fetch('/api/connection-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gateway: gatewayInput.trim(),
+          dashboard: dashboardInput.trim(),
+        }),
+      })
+      const data = (await res.json()) as ConnectionSettings & { error?: string }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setCurrent(data)
+      setMessage('Saved. Connection updated — no restart needed.')
+    } catch (err) {
+      setIsError(true)
+      setMessage(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 6000)
+    }
+  }
+
+  const reset = async () => {
+    setGatewayInput('')
+    setDashboardInput('')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/connection-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gateway: '', dashboard: '' }),
+      })
+      const data = (await res.json()) as ConnectionSettings
+      setCurrent(data)
+      setGatewayInput(data.gateway)
+      setDashboardInput(data.dashboard)
+      setMessage('Reset to env / default URLs.')
+    } catch {
+      setIsError(true)
+      setMessage('Reset failed')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 6000)
+    }
+  }
+
+  const inputClass =
+    'h-9 w-full rounded-lg border border-primary-200 bg-primary-50 px-3 text-sm text-primary-900 font-mono outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-400'
+
+  const sourceLabel: Record<ConnectionSettings['source'], string> = {
+    override: 'Runtime override (saved in workspace-overrides.json)',
+    env: 'From HERMES_API_URL / HERMES_DASHBOARD_URL env vars',
+    default: 'Defaults — no override set',
+  }
+
+  return (
+    <SettingsSection
+      title="Connection"
+      description="Point the workspace at your Hermes Agent services. Useful for Tailscale, LAN, or remote-server setups (#101)."
+      icon={Link01Icon}
+    >
+      <div className="text-xs text-primary-600">
+        {current ? sourceLabel[current.source] : 'Loading…'}
+      </div>
+
+      <SettingsRow
+        label="Gateway URL"
+        description="Core chat + completions + health. Default http://127.0.0.1:8645."
+      >
+        <input
+          className={inputClass}
+          value={gatewayInput}
+          onChange={(e) => setGatewayInput(e.target.value)}
+          placeholder="http://100.x.y.z:8642"
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label="Dashboard URL"
+        description="Extended APIs — sessions, skills, config, jobs. Default http://127.0.0.1:9119."
+      >
+        <input
+          className={inputClass}
+          value={dashboardInput}
+          onChange={(e) => setDashboardInput(e.target.value)}
+          placeholder="http://100.x.y.z:9119"
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
+      </SettingsRow>
+
+      <div className="flex items-center gap-2 pt-2">
+        <Button size="sm" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save & reprobe'}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={reset}
+          disabled={saving || current?.source === 'default'}
+        >
+          Reset to defaults
+        </Button>
+        {message ? (
+          <span
+            className={cn(
+              'text-xs',
+              isError ? 'text-red-500' : 'text-emerald-600',
+            )}
+          >
+            {message}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-3 rounded-lg border border-primary-200 bg-primary-100/50 p-3 text-xs text-primary-600">
+        <strong className="font-semibold">Tailscale / remote tip:</strong> Set
+        the gateway to its Tailscale IP (e.g. <code>http://100.x.y.z:8642</code>
+        ) and ensure the gateway listens on <code>0.0.0.0</code> (set{' '}
+        <code>API_SERVER_HOST=0.0.0.0</code> in the agent-side <code>.env</code>
+        ). No workspace restart needed — capabilities reprobe on save.
+      </div>
+    </SettingsSection>
   )
 }
