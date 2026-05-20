@@ -1,3 +1,4 @@
+import './buddy-env.js'
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
@@ -8,9 +9,9 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const CLIENT_DIR = join(__dirname, 'dist', 'client')
 
 const port = parseInt(process.env.PORT || '3000', 10)
-// Default HOST to localhost-only. Operators who want the workspace reachable
+// Default HOST to localhost-only. Operators who want Buddy Workspace reachable
 // on a LAN / Tailscale / public surface must opt in explicitly with
-// HOST=0.0.0.0 *and* set CLAUDE_PASSWORD (enforced below). See #122.
+// HOST=0.0.0.0 and set BUDDY_PASSWORD or HERMES_PASSWORD.
 const host = process.env.HOST || '127.0.0.1'
 
 function isNonLoopbackHost(h) {
@@ -23,25 +24,25 @@ function isNonLoopbackHost(h) {
 }
 
 if (isNonLoopbackHost(host)) {
-  // Honor HERMES_PASSWORD (current name) with CLAUDE_PASSWORD as a back-compat
-  // fallback for deployments configured pre-rename.
+  // Honor Buddy naming first, then upstream Hermes and legacy Claude aliases.
   const password = (
+    process.env.BUDDY_PASSWORD ||
     process.env.HERMES_PASSWORD ||
     process.env.CLAUDE_PASSWORD ||
     ''
   ).trim()
   if (!password) {
     console.error(
-      '\n[workspace] refusing to start.\n' +
-        `  HOST is set to "${host}" (non-loopback), but HERMES_PASSWORD is unset.\n` +
+      '\n[buddy-workspace] refusing to start.\n' +
+        `  HOST is set to "${host}" (non-loopback), but no workspace password is set.\n` +
         '  This would expose a high-privilege control plane (terminals, files, agents)\n' +
         '  to anyone who can reach the port. Either:\n' +
         '    • set HOST=127.0.0.1 for local-only access, or\n' +
-        '    • set HERMES_PASSWORD=<strong-secret> to enable workspace auth, or\n' +
-        '    • set HERMES_ALLOW_INSECURE_REMOTE=1 to bypass this check (not recommended).\n' +
-        '  See #122 for context.\n',
+        '    • set BUDDY_PASSWORD=<strong-secret> or HERMES_PASSWORD=<strong-secret>, or\n' +
+        '    • set BUDDY_ALLOW_INSECURE_REMOTE=1 to bypass this check (not recommended).\n',
     )
     const allowInsecure = (
+      process.env.BUDDY_ALLOW_INSECURE_REMOTE ||
       process.env.HERMES_ALLOW_INSECURE_REMOTE ||
       process.env.CLAUDE_ALLOW_INSECURE_REMOTE ||
       ''
@@ -56,14 +57,14 @@ if (isNonLoopbackHost(host)) {
       process.exit(1)
     }
     console.warn(
-      '[workspace] HERMES_ALLOW_INSECURE_REMOTE is set — starting anyway.',
+      '[buddy-workspace] BUDDY_ALLOW_INSECURE_REMOTE is set — starting anyway.',
     )
   }
 
   // Warn when serving over plain HTTP with a password: NODE_ENV=production
   // sets the Secure flag on session cookies, which browsers silently drop
-  // over http://.  Operators must set COOKIE_SECURE=0 for plain-HTTP LAN
-  // deployments.  See #149.
+  // over http://. Operators must set COOKIE_SECURE=0 for plain-HTTP LAN
+  // deployments.
   const cookieSecureOverride = (process.env.COOKIE_SECURE || '')
     .trim()
     .toLowerCase()
@@ -73,10 +74,10 @@ if (isNonLoopbackHost(host)) {
     cookieSecureOverride === 'no'
   if (!cookieSecureExplicit && process.env.NODE_ENV === 'production') {
     console.warn(
-      '\n[workspace] warning: plain-HTTP LAN deployment detected.\n' +
+      '\n[buddy-workspace] warning: plain-HTTP LAN deployment detected.\n' +
         '  NODE_ENV=production enables the Secure flag on session cookies.\n' +
         '  Browsers silently drop Secure cookies over http://, so login will fail.\n' +
-        '  Add COOKIE_SECURE=0 to your .env to fix this.  See #149.\n',
+        '  Add COOKIE_SECURE=0 to your .env to fix this.\n',
     )
   }
 }
@@ -236,7 +237,7 @@ async function requestHandler(req, res) {
 function listenOn(bindHost) {
   const httpServer = createServer(requestHandler)
   httpServer.listen(port, bindHost, () => {
-    console.log(`Hermes Workspace running at http://${bindHost}:${port}`)
+    console.log(`Buddy Workspace running at http://${bindHost}:${port}`)
   })
   return httpServer
 }
