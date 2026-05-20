@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" role="img" aria-labelledby="title desc" style="background:transparent;image-rendering:pixelated;text-rendering:geometricPrecision">
+<title id="title">Buddy Agent animated ASCII mascot</title>
+<desc id="desc">Transparent animated ASCII pixel-art Buddy mascot with heart antennae, navy pixel outline, rounded body, face panel, tiny limbs, sparkles, gold heart charm, and idle, happy, thinking, and sleepy states.</desc>
+<style>
+  .label,.caption,.ascii{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-weight:800;letter-spacing:0}
+  .label{font-size:30px;fill:#12184f}
+  .caption{font-size:12px;fill:#5fc8c5}
+  .ascii{font-size:9.4px;white-space:pre;fill:#12184f}
+  @media (prefers-color-scheme:dark){
+    .label,.ascii{fill:#bffff5}
+    .caption{fill:#7fe7df}
+  }
+</style>
+<text class="label" x="180" y="34" text-anchor="middle">buddy</text>
+<text class="caption" x="180" y="52" text-anchor="middle">..... &lt;3 .....</text>
+<g>
+  <animateTransform attributeName="transform" type="translate" values="0 0;0 -4;0 0" dur="2.2s" repeatCount="indefinite"/>
+  <text class="ascii" x="40" y="66" xml:space="preserve">
+  <tspan x="40">          .&lt;3.                 .&lt;3.</tspan>
+  <tspan x="40" dy="10.7">        .&#x27;    &#x27;.             .&#x27;    &#x27;.</tspan>
+  <tspan x="40" dy="10.7">       /  ooo  \           /  ooo  \</tspan>
+  <tspan x="40" dy="10.7">       \ o..o /     _^_     \ o..o /</tspan>
+  <tspan x="40" dy="10.7">         &#x27;---&#x27;    _/###\_    &#x27;---&#x27;</tspan>
+  <tspan x="40" dy="10.7">             ___/##ooooo##\___</tspan>
+  <tspan x="40" dy="10.7">          .-##ooooooooooooo##-.</tspan>
+  <tspan x="40" dy="10.7">        .##ooooooooooooooooooo##.</tspan>
+  <tspan x="40" dy="10.7">       /##oo+++-----------+++oo##\</tspan>
+  <tspan x="40" dy="10.7">      /##oo+---.-----------.---+oo##\</tspan>
+  <tspan x="40" dy="10.7">  o  |##oo+---|  @     @  |---+oo##|  o</tspan>
+  <tspan x="40" dy="10.7">     |##oo+---|  @.   .@  |---+oo##|</tspan>
+  <tspan x="40" dy="10.7">     |##oo+---|     _     |---+oo##|</tspan>
+  <tspan x="40" dy="10.7">     |##oo+---&#x27;----___----&#x27;---+oo##|</tspan>
+  <tspan x="40" dy="10.7">      \##ooo+---------------+ooo##/</tspan>
+  <tspan x="40" dy="10.7">        &#x27;##oooo+++-----+++oooo##&#x27;</tspan>
+  <tspan x="40" dy="10.7">           &#x27;##%%%%##&lt;3##%%%%##&#x27;</tspan>
+  <tspan x="40" dy="10.7">             &#x27;##%%#***#%%##&#x27;</tspan>
+  <tspan x="40" dy="10.7">                ##     ##</tspan>
+</text>
+</g>
+<text class="caption" x="180" y="278" text-anchor="middle">&gt; idle / happy / thinking / sleepy</text>
+</svg>
