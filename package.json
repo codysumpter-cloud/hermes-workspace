@@ -1,12 +1,16 @@
 {
-  "name": "hermes-workspace",
+  "name": "buddy-workspace",
   "version": "2.3.0",
-  "description": "Desktop workspace for Hermes Agent — chat, orchestration, and multi-agent coding pipelines",
-  "author": "Eric (https://github.com/outsourc-e)",
+  "description": "Desktop command center for Buddy and Hermes agents — chat, orchestration, memory, skills, terminal, and multi-agent workflows",
+  "author": "Prismtek / Cody Sumpter (https://github.com/codysumpter-cloud)",
   "license": "MIT",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codysumpter-cloud/buddy-workspace.git"
+  },
   "scripts": {
     "dev": "NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
     "build": "NODE_OPTIONS=\"--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-2048}\" vite build",
