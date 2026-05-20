@@ -1,0 +1,68 @@
+name: Patch README branding
+
+on:
+  push:
+    branches:
+      - buddy-workspace-sync-rebrand
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: buddy-workspace-sync-rebrand
+      - name: Patch README text
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('README.md')
+          s = p.read_text()
+          pairs = [
+              ('./public/claude-avatar.webp', './public/buddy-agent-mascot.svg'),
+              ('alt="Hermes Workspace" width="80"', 'alt="Buddy Workspace" width="160"'),
+              ('# Hermes Workspace', '# Buddy Workspace'),
+              ('![Hermes Workspace]', '![Buddy Workspace]'),
+              ('Your AI agent\'s command center — chat, files, memory, skills, and terminal in one place.', 'The Prismtek command center for Buddy and Hermes-compatible agents — chat, files, memory, skills, terminal, jobs, dashboards, and multi-agent orchestration in one place.'),
+              ('Hermes Workspace is a **Progressive Web App (PWA)**', 'Buddy Workspace is a **Progressive Web App (PWA)**'),
+              ('Open Hermes Workspace', 'Open Buddy Workspace'),
+              ('the Hermes Workspace icon', 'the Buddy Workspace icon'),
+              ('Hermes Workspace opens', 'Buddy Workspace opens'),
+              ('Hermes Workspace is now', 'Buddy Workspace is now'),
+              ('Access Hermes Workspace', 'Access Buddy Workspace'),
+              ('Hermes Workspace on your phone', 'Buddy Workspace on your phone'),
+              ('Install Hermes Workspace', 'Install Buddy Workspace'),
+              ('Hermes Workspace as a PWA', 'Buddy Workspace as a PWA'),
+              ('Hermes Workspace is free and open source.', 'Buddy Workspace is part of the Prismtek Buddy ecosystem and remains open source.'),
+              ('Built with ⚡ by <a href="https://github.com/outsourc-e">@outsourc-e</a> and the Hermes Workspace community', 'Built for the Prismtek Buddy ecosystem, based on the Hermes Workspace community project'),
+              ('https://github.com/outsourc-e/hermes-workspace.git', 'https://github.com/codysumpter-cloud/buddy-workspace.git'),
+              ('cd hermes-workspace', 'cd buddy-workspace'),
+              ('~/hermes-workspace', '~/buddy-workspace'),
+              ('ghcr.io/outsourc-e/hermes-workspace', 'ghcr.io/codysumpter-cloud/buddy-workspace'),
+              ('outsourc-e/hermes-workspace', 'codysumpter-cloud/buddy-workspace'),
+              ('hermes-workspace', 'buddy-workspace'),
+          ]
+          for old, new in pairs:
+              s = s.replace(old, new)
+          marker = '</div>\n\n---\n'
+          section = '''\n## Buddy ecosystem role\n\nBuddy Workspace is the UI and command center. It coordinates Buddy/Hermes-compatible runtime services without replacing them.\n\n| Project | Role |\n|---|---|\n| `buddy-workspace` | Web, PWA, and Electron command center for chat, files, terminal, memory, skills, jobs, dashboards, conductor, kanban, and swarm operations |\n| `buddy-agent` | Guarded execution/runtime layer for Buddy workflows and the Prismtek agent operating model |\n| `buddy-brain` | Durable memory, receipts, skill contracts, knowledge artifacts, and long-lived context |\n| `Omni-buddy` | Companion, avatar, TTS, and media lane that should integrate through skills or services |\n| `Hermes Agent` | Upstream-compatible gateway/dashboard baseline and zero-fork agent backend |\n\nBuddy Workspace intentionally keeps the Hermes gateway/dashboard contract intact so existing reference features do not break while Prismtek-specific runtimes mature around it.\n\n---\n'''
+          if '## Buddy ecosystem role' not in s:
+              s = s.replace(marker, marker + section, 1)
+          p.write_text(s)
+          PY
+      - name: Commit README changes
+        run: |
+          if git diff --quiet README.md; then
+            echo "README already rebranded."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: rebrand README for Buddy Workspace"
+          git push
