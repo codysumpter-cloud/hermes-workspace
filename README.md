@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="./public/claude-avatar.webp" alt="Hermes Workspace" width="80" style="border-radius: 16px" />
+<img src="./public/buddy-agent-mascot.svg" alt="Buddy Workspace" width="160" style="border-radius: 16px" />
 <!-- avatar filename retained for cache stability — do not rename without coordinated cache-bust -->
 
-# Hermes Workspace
+# Buddy Workspace
 
-**Your AI agent's command center — chat, files, memory, skills, and terminal in one place.**
+**The Prismtek command center for Buddy and Hermes-compatible agents — chat, files, memory, skills, terminal, jobs, dashboards, and multi-agent orchestration in one place.**
 
 [![Version](https://img.shields.io/badge/version-2.3.0-2557b7.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -14,11 +14,27 @@
 
 > Not a chat wrapper. A complete workspace — orchestrate agents, browse memory, manage skills, and control everything from one interface.
 
-> **v2 — zero-fork.** Clone, don't fork. Runs on vanilla [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) installed via Nous's own installer. Chat, sessions, memory, skills, jobs, MCP, terminal, dashboard, Agent View, and Operations are all in vanilla parity. **Conductor** uses the dashboard mission API when available and falls back to Workspace-native Swarm dispatch (`mode: native-swarm`) when the dashboard endpoint is absent, preserving zero-fork behavior ([#262](https://github.com/outsourc-e/hermes-workspace/issues/262)).
+> **v2 — zero-fork.** Clone, don't fork. Runs on vanilla [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) installed via Nous's own installer. Chat, sessions, memory, skills, jobs, MCP, terminal, dashboard, Agent View, and Operations are all in vanilla parity. **Conductor** uses the dashboard mission API when available and falls back to Workspace-native Swarm dispatch (`mode: native-swarm`) when the dashboard endpoint is absent, preserving zero-fork behavior ([#262](https://github.com/codysumpter-cloud/buddy-workspace/issues/262)).
 
-![Hermes Workspace](./docs/screenshots/splash.png)
+![Buddy Workspace](./docs/screenshots/splash.png)
 
 </div>
+
+---
+
+## Buddy ecosystem role
+
+Buddy Workspace is the UI and command center. It coordinates Buddy/Hermes-compatible runtime services without replacing them.
+
+| Project | Role |
+|---|---|
+| `buddy-workspace` | Web, PWA, and Electron command center for chat, files, terminal, memory, skills, jobs, dashboards, conductor, kanban, and swarm operations |
+| `buddy-agent` | Guarded execution/runtime layer for Buddy workflows and the Prismtek agent operating model |
+| `buddy-brain` | Durable memory, receipts, skill contracts, knowledge artifacts, and long-lived context |
+| `Omni-buddy` | Companion, avatar, TTS, and media lane that should integrate through skills or services |
+| `Hermes Agent` | Upstream-compatible gateway/dashboard baseline and zero-fork agent backend |
+
+Buddy Workspace intentionally keeps the Hermes gateway/dashboard contract intact so existing reference features do not break while Prismtek-specific runtimes mature around it.
 
 ---
 
@@ -92,14 +108,14 @@ Three paths — pick the one that matches you:
 ### One-line install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/outsourc-e/hermes-workspace/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/codysumpter-cloud/buddy-workspace/main/install.sh | bash
 ```
 
 This installs `hermes-agent` via Nous's official installer, clones this repo, sets up `.env`, and installs dependencies. Then:
 
 ```bash
 hermes gateway run                  # terminal 1
-cd ~/hermes-workspace && pnpm dev   # terminal 2
+cd ~/buddy-workspace && pnpm dev   # terminal 2
 ```
 
 Open http://localhost:3000. That's it.
@@ -111,8 +127,8 @@ Open http://localhost:3000. That's it.
 If you already have `hermes-agent` installed (via Nous's official installer, a source checkout, systemd, Docker, or another existing setup) and it's serving the gateway at `http://<host>:8642`, you don't need to reinstall anything — just point the workspace at it.
 
 ```bash
-git clone https://github.com/outsourc-e/hermes-workspace.git
-cd hermes-workspace
+git clone https://github.com/codysumpter-cloud/buddy-workspace.git
+cd buddy-workspace
 pnpm install
 cp .env.example .env
 
@@ -195,8 +211,8 @@ Our one-liner installer (below) does both steps automatically. If you're using a
 
 ```bash
 # In a new terminal
-git clone https://github.com/outsourc-e/hermes-workspace.git
-cd hermes-workspace
+git clone https://github.com/codysumpter-cloud/buddy-workspace.git
+cd buddy-workspace
 pnpm install
 cp .env.example .env
 printf '\nHERMES_API_URL=http://127.0.0.1:8642\n' >> .env
@@ -325,7 +341,7 @@ Workspace is the UI. **Hermes Agent** is the brain. They talk over two HTTP serv
 ```bash
 hermes gateway run     # terminal 1 · :8642 · chat, models, streaming, jobs
 hermes dashboard       # terminal 2 · :9119 · sessions, skills, config, MCP
-cd ~/hermes-workspace && pnpm dev   # terminal 3 · :3000 · the UI
+cd ~/buddy-workspace && pnpm dev   # terminal 3 · :3000 · the UI
 ```
 
 > **Tip:** `pnpm start:all` starts gateway + dashboard + workspace in one shot if you've installed via the one-liner.
@@ -336,18 +352,18 @@ If you use Hermes Workspace from Windows with the agent running in WSL, use the 
 
 ```powershell
 # from the repo root
-.\scripts\start-hermes-workspace.ps1
+.\scripts\start-buddy-workspace.ps1
 ```
 
 To force a clean relaunch of the tmux session:
 
 ```powershell
-.\scripts\start-hermes-workspace.ps1 -Restart
+.\scripts\start-buddy-workspace.ps1 -Restart
 ```
 
 Optional parameters:
 - `-Distro <name>` to target a non-default WSL distro
-- `-WorkspacePath </path/in/wsl>` if your clone is not at `~/hermes-workspace`
+- `-WorkspacePath </path/in/wsl>` if your clone is not at `~/buddy-workspace`
 - `-SessionName <name>` to use a custom tmux session name
 
 ### Verify the pairing
@@ -399,7 +415,7 @@ If you've already started the workspace, change either URL from **Settings → C
 
 ## 🐳 Docker Quickstart
 
-[![Open in GitHub Codespaces](https://img.shields.io/badge/GitHub%20Codespaces-Open-181717?logo=github)](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=outsourc-e/hermes-workspace)
+[![Open in GitHub Codespaces](https://img.shields.io/badge/GitHub%20Codespaces-Open-181717?logo=github)](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=codysumpter-cloud/buddy-workspace)
 
 The Docker setup runs both the **Hermes Agent gateway** and **Hermes Workspace** together.
 
@@ -412,8 +428,8 @@ The Docker setup runs both the **Hermes Agent gateway** and **Hermes Workspace**
 ### Step 1: Configure Environment
 
 ```bash
-git clone https://github.com/outsourc-e/hermes-workspace.git
-cd hermes-workspace
+git clone https://github.com/codysumpter-cloud/buddy-workspace.git
+cd buddy-workspace
 cp .env.example .env
 ```
 
@@ -439,7 +455,7 @@ docker compose up
 This pulls two pre-built images and starts them:
 
 - **hermes-agent** → `nousresearch/hermes-agent:latest` on port **8642**
-- **hermes-workspace** → `ghcr.io/outsourc-e/hermes-workspace:latest` on port **3000**
+- **buddy-workspace** → `ghcr.io/codysumpter-cloud/buddy-workspace:latest` on port **3000**
 
 No local build. First run takes a minute to pull; subsequent starts are instant.
 Agent state (config, sessions, skills, memory, credentials) persists in the
@@ -461,7 +477,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 The base `docker-compose.yml` stays untouched — the overlay adds a `build:`
-block for the `hermes-workspace` service so the local repo is compiled
+block for the `buddy-workspace` service so the local repo is compiled
 instead of pulled. The Hermes Agent service still uses the canonical
 `nousresearch/hermes-agent:latest` image; if you need a custom agent
 build, tag it locally and override `image:` in your own
@@ -473,7 +489,7 @@ Deploying Hermes Workspace to a PaaS or home-lab stack? Pull the image
 directly from GitHub Container Registry:
 
 ```
-ghcr.io/outsourc-e/hermes-workspace:latest
+ghcr.io/codysumpter-cloud/buddy-workspace:latest
 ```
 
 Available tags:
@@ -487,8 +503,8 @@ Available tags:
 Minimal Coolify / Easypanel config:
 
 ```yaml
-service: hermes-workspace
-image: ghcr.io/outsourc-e/hermes-workspace:latest
+service: buddy-workspace
+image: ghcr.io/codysumpter-cloud/buddy-workspace:latest
 port: 3000
 env:
   HERMES_API_URL: http://hermes-agent:8642   # point at your gateway
@@ -503,36 +519,36 @@ does by default) or an existing gateway on another host.
 
 ## 📱 Install as App (Recommended)
 
-Hermes Workspace is a **Progressive Web App (PWA)** — install it for the full native app experience with no browser chrome, keyboard shortcuts, and offline support.
+Buddy Workspace is a **Progressive Web App (PWA)** — install it for the full native app experience with no browser chrome, keyboard shortcuts, and offline support.
 
 ### 🖥️ Desktop (macOS / Windows / Linux)
 
-1. Open Hermes Workspace in **Chrome** or **Edge** at `http://localhost:3000`
+1. Open Buddy Workspace in **Chrome** or **Edge** at `http://localhost:3000`
 2. Click the **install icon** (⊕) in the address bar
-3. Click **Install** — Hermes Workspace opens as a standalone desktop app
+3. Click **Install** — Buddy Workspace opens as a standalone desktop app
 4. Pin to Dock / Taskbar for quick access
 
 > **macOS users:** After installing, you can also add it to your Launchpad.
 
 ### 📱 iPhone / iPad (iOS Safari)
 
-1. Open Hermes Workspace in **Safari** on your iPhone
+1. Open Buddy Workspace in **Safari** on your iPhone
 2. Tap the **Share** button (□↑)
 3. Scroll down and tap **"Add to Home Screen"**
-4. Tap **Add** — the Hermes Workspace icon appears on your home screen
+4. Tap **Add** — the Buddy Workspace icon appears on your home screen
 5. Launch from home screen for the full native app experience
 
 ### 🤖 Android
 
-1. Open Hermes Workspace in **Chrome** on your Android device
+1. Open Buddy Workspace in **Chrome** on your Android device
 2. Tap the **three-dot menu** (⋮) → **"Add to Home screen"**
-3. Tap **Add** — Hermes Workspace is now a native-feeling app on your device
+3. Tap **Add** — Buddy Workspace is now a native-feeling app on your device
 
 ---
 
 ## 📡 Mobile Access via Tailscale
 
-Access Hermes Workspace from anywhere on your devices — no port forwarding, no VPN complexity.
+Access Buddy Workspace from anywhere on your devices — no port forwarding, no VPN complexity.
 
 ### Setup
 
@@ -549,7 +565,7 @@ Access Hermes Workspace from anywhere on your devices — no port forwarding, no
    # Example output: 100.x.x.x
    ```
 
-4. **Open Hermes Workspace on your phone:**
+4. **Open Buddy Workspace on your phone:**
 
    ```
    http://100.x.x.x:3000
@@ -572,7 +588,7 @@ The desktop app will offer:
 - Auto-launch on startup
 - Deep OS integration (macOS menu bar, Windows taskbar)
 
-**In the meantime:** Install Hermes Workspace as a PWA (see above) for a near-native desktop experience — it works great.
+**In the meantime:** Install Buddy Workspace as a PWA (see above) for a near-native desktop experience — it works great.
 
 ---
 
@@ -713,7 +729,7 @@ If using Docker Compose and getting auth errors:
 
 5. **Check workspace logs for gateway status:**
    ```bash
-   docker compose logs hermes-workspace
+   docker compose logs buddy-workspace
    ```
    Look for: `[gateway] http://hermes-agent:8642 mode=...` — if it shows `mode=disconnected`, the agent isn't running correctly.
 
@@ -753,7 +769,7 @@ The Docker setup runs both automatically — no action needed if using `docker c
 
 | Feature | Status |
 |---|---|
-| Conductor missions | Workspace UI is shipped; uses dashboard mission API when available and Workspace-native Swarm fallback otherwise (see [#262](https://github.com/outsourc-e/hermes-workspace/issues/262)) |
+| Conductor missions | Workspace UI is shipped; uses dashboard mission API when available and Workspace-native Swarm fallback otherwise (see [#262](https://github.com/codysumpter-cloud/buddy-workspace/issues/262)) |
 | Native Desktop App (Electron) | Spec'd; PWA install path works today |
 
 ### Coming 🔜
@@ -767,11 +783,11 @@ The Docker setup runs both automatically — no action needed if using `docker c
 
 ## ⭐ Star History
 
-## [![Star History Chart](https://api.star-history.com/svg?repos=outsourc-e/hermes-workspace&type=date&logscale&legend=top-left)](https://www.star-history.com/#outsourc-e/hermes-workspace&type=date&logscale&legend=top-left)
+## [![Star History Chart](https://api.star-history.com/svg?repos=codysumpter-cloud/buddy-workspace&type=date&logscale&legend=top-left)](https://www.star-history.com/#codysumpter-cloud/buddy-workspace&type=date&logscale&legend=top-left)
 
 ## 💛 Support the Project
 
-Hermes Workspace is free and open source. If it's saving you time and powering your workflow, consider supporting development:
+Buddy Workspace is part of the Prismtek Buddy ecosystem and remains open source. If it's saving you time and powering your workflow, consider supporting development:
 
 **ETH:** `0xB332D4C60f6FBd94913e3Fd40d77e3FE901FAe22`
 
@@ -798,5 +814,5 @@ MIT — see [LICENSE](LICENSE) for details.
 ---
 
 <div align="center">
-  <sub>Built with ⚡ by <a href="https://github.com/outsourc-e">@outsourc-e</a> and the Hermes Workspace community</sub>
+  <sub>Built for the Prismtek Buddy ecosystem, based on the Hermes Workspace community project</sub>
 </div>
