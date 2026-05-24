@@ -7,7 +7,7 @@
 # Run against a local or remote Buddy/Hermes-compatible gateway:
 #   docker run -p 3000:3000 -e BUDDY_API_URL=http://host.docker.internal:8642 buddy-workspace
 #
-FROM tianon/gosu:1.19-bookworm AS gosu_source
+FROM tianon/gosu:1.17-bookworm AS gosu_source
 # ─── build stage ─────────────────────────────────────────────────────────
 FROM node:22-slim AS build
 RUN corepack enable && apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
